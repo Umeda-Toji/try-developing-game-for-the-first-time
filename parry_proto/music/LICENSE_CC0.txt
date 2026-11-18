@@ -1,0 +1,6 @@
+BGM (all CC0 1.0, from OpenGameArt.org)
+- battle_theme_a_loop.ogg: "Cynic Battle Loop" by Ferk, a loop of "Battle Theme A" by Alex Smith (cynicmusic.com / pixelsphere.org)
+  https://opengameart.org/content/cynic-battle-loop
+- epic_boss_battle_loop.wav: "Epic Boss Battle" by Juhani Junkala (SubspaceAudio)
+  https://opengameart.org/content/boss-battle-music
+https://creativecommons.org/publicdomain/zero/1.0/

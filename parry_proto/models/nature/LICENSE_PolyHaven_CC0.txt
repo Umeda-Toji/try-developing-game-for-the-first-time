@@ -1,0 +1,2 @@
+Models from Poly Haven (https://polyhaven.com) - CC0 1.0 (public domain)
+dead_tree_trunk, fern_02, nettle_plant, rock_07, rock_09, rock_moss_set_01, shrub_02, shrub_03, shrub_04, street_lamp_02, weed_plant_02 (glTF, 1k textures)

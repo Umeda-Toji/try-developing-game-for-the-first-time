@@ -1,0 +1,9 @@
+# Godot が自動で作り直すもの（インポートのキャッシュ）
+parry_proto/.godot/
+# 書き出した .exe（作り直せる）
+build/
+# ダウンロードした素材の元（使う分は parry_proto/ にコピー済み。もう一度ダウンロードできる）
+assets_src/
+# 書き出しの途中ファイルなど
+*.tmp
+*.translation

@@ -1,0 +1,4 @@
+Textures and HDRI from Poly Haven (https://polyhaven.com) - CC0 1.0 (public domain)
+https://polyhaven.com/license
+concrete_wall_006, beige_wall_002, dirty_concrete, mossy_cobblestone, concrete_floor_damaged_01, mossy_rock, old_planks_02, bark_brown_02 (1k JPG)
+aristea_wreck_puresky (2k HDR)
