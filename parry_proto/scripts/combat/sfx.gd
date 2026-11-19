@@ -22,6 +22,14 @@ const SOUNDS := {
 	"flower_white": {"files": ["res://sounds/impactGlass_light_000.ogg", "res://sounds/impactGlass_light_001.ogg", "res://sounds/impactGlass_light_002.ogg"], "volume_db": -8.0, "pitch_jitter": 0.05},
 	"flower_red": {"files": ["res://sounds/impactBell_heavy_002.ogg", "res://sounds/impactBell_heavy_003.ogg"], "volume_db": -6.0, "pitch_jitter": 0.03, "pitch": 0.75},
 	"petal": {"files": ["res://sounds/cloth2.ogg", "res://sounds/cloth3.ogg"], "volume_db": -12.0, "pitch_jitter": 0.1},
+	# 銃（G-03。11/19）：撃つ＝Tabasco「Gunshot Sounds」から1発ずつ切り出し、リロード＝SpringySpringo、弾切れ＝LFA（どれも CC0）
+	"shot_ar": {"files": ["res://sounds/gun_shot_ar.wav"], "volume_db": -12.0, "pitch_jitter": 0.04},
+	"shot_smg": {"files": ["res://sounds/gun_shot_smg.wav"], "volume_db": -14.0, "pitch_jitter": 0.05, "pitch": 1.15},
+	"shot_sg": {"files": ["res://sounds/gun_shot_sg.wav"], "volume_db": -9.0, "pitch_jitter": 0.03},
+	"reload_ar": {"files": ["res://sounds/gun_reload_ar.wav"], "volume_db": -6.0, "pitch_jitter": 0.0},
+	"reload_smg": {"files": ["res://sounds/gun_reload_smg.wav"], "volume_db": -6.0, "pitch_jitter": 0.0},
+	"reload_sg": {"files": ["res://sounds/gun_reload_sg.wav"], "volume_db": -6.0, "pitch_jitter": 0.0},
+	"gun_empty": {"files": ["res://sounds/gun_empty.wav"], "volume_db": -4.0, "pitch_jitter": 0.0},
 }
 const MAX_POLYPHONY := 4  # 同じ音が重なって鳴ってよい数（連続ヒットで前の音が切れないように）
 
@@ -61,6 +69,7 @@ func _ready() -> void:
 	GameFeel.spark_requested.connect(_on_spark)
 	GameFeel.witch_time_changed.connect(_on_witch_time_changed)
 	GameFeel.flower_opened.connect(_on_flower_opened)
+	GameFeel.sound_requested.connect(play)
 
 
 func play(kind: String) -> void:

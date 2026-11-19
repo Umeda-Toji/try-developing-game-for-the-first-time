@@ -40,7 +40,8 @@ var _player_label: Label
 var _enemy_name_label: Label
 var _player_fill: StyleBoxFlat
 var _posture_fill: StyleBoxFlat
-var weapon_label: Label   # 右下：今の武器（G-01。弾の数は 5b で足す）
+var weapon_label: Label   # 右下：今の武器と弾の数（G-01・G-03）
+var crosshair: Control    # 真ん中の照準（銃のときだけ。G-03）
 
 
 func _ready() -> void:
@@ -62,6 +63,12 @@ func _ready() -> void:
 	weapon_label.offset_top = -MARGIN - 40
 	weapon_label.offset_bottom = -MARGIN
 	add_child(weapon_label)
+	crosshair = Control.new()
+	crosshair.name = "Crosshair"
+	crosshair.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	crosshair.draw.connect(_draw_crosshair)
+	add_child(crosshair)
 
 
 func _process(_delta: float) -> void:
@@ -133,6 +140,23 @@ func _make_fill(color: Color) -> StyleBoxFlat:
 	return s
 
 
+# 照準：構えは小さな点、腰だめは広がり（角度）に合わせた円
+func _draw_crosshair() -> void:
+	if player == null or player.weapons == null or not player.weapons.is_gun():
+		return
+	var c := crosshair.size * 0.5
+	var col := Color(1, 1, 1, 0.85)
+	if player.aiming:
+		crosshair.draw_circle(c, 2.5, col)
+		return
+	var cam := get_viewport().get_camera_3d()
+	var fov := deg_to_rad(cam.fov if cam != null else 70.0)
+	var spread := deg_to_rad(float(Weapons.GUNS[player.weapons.current]["spread_hip"]))
+	var r := maxf(6.0, tan(spread) / tan(fov * 0.5) * crosshair.size.y * 0.5)
+	crosshair.draw_arc(c, r, 0.0, TAU, 32, col, 1.5)
+	crosshair.draw_circle(c, 1.5, col)
+
+
 func _make_label() -> Label:
 	var l := Label.new()
 	l.add_theme_font_size_override("font_size", FONT_SIZE)
@@ -147,7 +171,18 @@ func _make_label() -> Label:
 func _update_player() -> void:
 	if player.weapons != null:
 		var w: Weapons = player.weapons
-		weapon_label.text = ("持ち替え中… " + w.label()) if w.is_swapping() else w.label()
+		var text := w.label()
+		var empty := false
+		if w.is_gun() and not w.is_swapping():
+			var a := w.ammo(w.current)
+			text = "%s　%d ／ %d" % [w.label(), int(a["mag"]), int(a["reserve"])]
+			if w.is_reloading():
+				text += "　リロード中"
+			empty = int(a["mag"]) <= 0
+		weapon_label.text = ("持ち替え中… " + w.label()) if w.is_swapping() else text
+		weapon_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3) if empty else Color.WHITE)
+		crosshair.visible = w.is_gun()
+		crosshair.queue_redraw()
 	player_hp_bar.max_value = player.max_hp
 	player_hp_bar.value = player.hp
 	_player_label.text = "HP %d / %d" % [player.hp, player.max_hp]

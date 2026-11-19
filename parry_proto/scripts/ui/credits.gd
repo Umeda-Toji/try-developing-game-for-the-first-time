@@ -21,6 +21,11 @@ const CREDITS_HEAD := """ParryProto（試作）
 ・Birds and Wind - Ambient — Spring Spring（鳥の声：isaiah658 ／ syncopika ／ pauliuw、パブリックドメイン）
 ・Sea and river wave sounds — RandomMind
 
+■ 銃の音（OpenGameArt.org、CC0 1.0）
+・Gunshot Sounds — Tabasco（撃つ音）
+・Gun reload sounds — SpringySpringo（リロードの音）
+・equipment clicks III — LFA（弾切れの音）
+
 ■ テクスチャ・空・植物などの3Dモデル（Poly Haven、https://polyhaven.com、CC0 1.0）
 ・concrete_wall_006 ／ beige_wall_002 ／ dirty_concrete ／ mossy_cobblestone ／
   concrete_floor_damaged_01 ／ mossy_rock ／ old_planks_02 ／ bark_brown_02

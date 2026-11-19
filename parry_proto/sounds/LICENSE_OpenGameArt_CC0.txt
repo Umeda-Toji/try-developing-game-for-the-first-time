@@ -3,4 +3,11 @@ Ambient sounds (all CC0 1.0, from OpenGameArt.org)
   https://opengameart.org/content/birds-and-wind-ambient-birds-wind-and-synth
 - ambient_river.mp3: "VistulaShort.mp3" from "Sea and river wave sounds" by RandomMind
   https://opengameart.org/content/sea-and-river-wave-sounds
+Gun sounds (all CC0 1.0, from OpenGameArt.org)
+- gun_shot_ar.wav / gun_shot_smg.wav / gun_shot_sg.wav: single shots cut from "Gunshot Sounds" by Tabasco (sks.wav / cz.wav / shotty.wav)
+  https://opengameart.org/content/gunshot-sounds
+- gun_reload_ar.wav / gun_reload_smg.wav / gun_reload_sg.wav: "Gun reload sounds" by SpringySpringo (assaultriflereload1 / gunreload1 / shotguncock)
+  https://opengameart.org/content/gun-reload-sounds
+- gun_empty.wav: one click cut from "equipment clicks III" by LFA
+  https://opengameart.org/node/5314
 https://creativecommons.org/publicdomain/zero/1.0/

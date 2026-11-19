@@ -73,7 +73,7 @@ func _physics_process(_delta: float) -> void:
 				_results["AR を持つと、手に銃・背中に剣（剣は手から消える）"] = g.visible and _w._back_sword.visible and not _w._hand_sword.visible
 				_results["銃は手のそばにあり（%.2f m）、前を向いている（%.2f）" % [g.global_position.distance_to(hand), g.global_basis.x.normalized().dot(fwd)]] = (
 					g.global_position.distance_to(hand) < 0.3 and g.global_basis.x.normalized().dot(fwd) > 0.9)
-				_results["右下に「AR」と出る（%s）" % _main.battle_hud.weapon_label.text] = _main.battle_hud.weapon_label.text == "AR"
+				_results["右下に「AR」と弾の数が出る（%s）" % _main.battle_hud.weapon_label.text] = _main.battle_hud.weapon_label.text.begins_with("AR")
 				Input.action_press("attack_light")
 			if _t == 62:
 				Input.action_release("attack_light")

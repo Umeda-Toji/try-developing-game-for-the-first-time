@@ -92,7 +92,8 @@ const TEST_SCRIPTS := {
 	"--lockon-test": "res://tests/lockon_test.gd",  # ロックオンの切り替え（L-01）
 	"--flower-test": "res://tests/flower_test.gd",  # 敵の頭の花（F-01）
 	"--sound-test": "res://tests/sound_test.gd",  # 探索の曲・環境音・花の音（A-01〜A-03）
-	"--weapon-test": "res://tests/weapon_test.gd",  # 武器の持ち替え・武器の輪（G-01・G-02）  # 景色の確認用（テストではない。エリアを順に映す）
+	"--weapon-test": "res://tests/weapon_test.gd",  # 武器の持ち替え・武器の輪（G-01・G-02）
+	"--gun-test": "res://tests/gun_test.gd",  # 撃つ・構え・反動・リロード（G-03）  # 景色の確認用（テストではない。エリアを順に映す）
 }
 const TITLE_TEST_FLAG := "--title-test"  # テストのうち、これだけはタイトル画面を出す
 const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test", "--sound-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
@@ -457,6 +458,10 @@ func _setup_input_map() -> void:
 	_add_action("weapon_sg", [_key(KEY_3)])
 	_add_action("weapon_wheel", [_joy(JOY_BUTTON_RIGHT_STICK)])  # R3
 	_add_action("wheel_hold", [_joy(JOY_BUTTON_Y)])  # △（銃のときの長押しだけに使う）
+	# 銃（G-03）：撃つ＝左クリック／R1、構える＝右クリック／L1、リロード＝R／○（剣のときは何もしない）
+	_add_action("fire", [_mouse(MOUSE_BUTTON_LEFT), _joy(JOY_BUTTON_RIGHT_SHOULDER)])
+	_add_action("aim", [_mouse(MOUSE_BUTTON_RIGHT), _joy(JOY_BUTTON_LEFT_SHOULDER)])
+	_add_action("reload", [_key(KEY_R), _joy(JOY_BUTTON_B)])
 
 
 func _add_action(action_name: String, events: Array) -> void:

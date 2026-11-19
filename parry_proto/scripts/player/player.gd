@@ -57,6 +57,8 @@ const CHARGE_MAX_FRAMES := 60      # 溜めに入ってから最大まで溜ま�
 const CHARGE_MAX_MULTIPLIER := 2.0 # 最大まで溜めたときのダメージ・体幹ダメージの倍率
 
 # ソフトロック（P-17）：ロックオンしていなくても、攻撃の瞬間に近くの敵を向く
+const AIM_WALK_MULT := 0.5               # 構えている間の歩く速さ（G-03）
+const AIM_RAY_LENGTH := 200.0            # 画面の真ん中から狙う所を探す長さ（m）
 const WHEEL_HOLD_FRAMES := 20            # 銃のとき△をこれだけ押し続けると武器の輪が開く（G-02）
 const LOCK_RANGE := 25.0                  # ロックオンできる距離（m。今までと同じ）
 const LOCK_RELEASE_HOLD_FRAMES := 45      # ロックオン中にこれだけ押し続けると解除（L-01）
@@ -164,6 +166,8 @@ var hitstop_frames := 0
 var lock_target: Node3D = null
 var weapons: Weapons           # 武器の持ち替え（G-01）
 var input_blocked := false     # 武器の輪を開いている間は true（移動・ジャンプ・攻撃をしない）
+var aiming := false            # 銃を構えている（G-03）
+var _aim_suppressed := false   # 回避で構えを解いた（構えのボタンを離すまで構えない）
 var _wheel_hold_frames := 0
 var _lock_hold_frames := 0     # ロックオンのボタンを押し続けているフレーム数（L-01）
 var _lock_hold_done := false   # 長押しで解除した（離すまで、ほかのことをしない）
@@ -235,6 +239,8 @@ func _physics_process(delta: float) -> void:
 		hitstop_frames -= 1
 		return
 
+	if state != State.MOVE:
+		aiming = false
 	_buffer_age += 1
 	if _counter_frames > 0:
 		_counter_frames -= 1
@@ -295,7 +301,11 @@ func _state_move() -> void:
 	# 走る：回避の後に回避ボタンを押し続けている間（動いていて、スタミナがある間）
 	if sprinting and (not Input.is_action_pressed("dodge") or dir.length() < 0.1 or stamina <= 0.0 or not is_on_floor()):
 		sprinting = false
-	var speed := MOVE_SPEED
+	_update_aim()
+	if aiming:
+		sprinting = false
+		gliding = false
+	var speed := MOVE_SPEED * (AIM_WALK_MULT if aiming else 1.0)
 	if gliding:
 		speed = GLIDE_SPEED
 		if dir.length() < 0.1:
@@ -306,10 +316,14 @@ func _state_move() -> void:
 		_use_stamina(STAMINA_DRAIN_SPRINT)
 	velocity.x = dir.x * speed
 	velocity.z = dir.z * speed
-	if lock_target != null and not gliding and not sprinting:
+	var shooting := weapons.is_gun() and not input_blocked and Input.is_action_pressed("fire")
+	if lock_target != null and not gliding and not sprinting and not aiming:
 		_face_toward(lock_target.global_position, 0.25)
+	elif aiming or shooting:
+		_face_dir(_camera_forward(), 0.5)  # 構え・腰だめ（ロックオンなし）はカメラの向きへ
 	elif dir.length() > 0.1:
 		_face_dir(dir, 0.25)
+	_update_gun(shooting)
 
 	if Input.is_action_just_pressed("use_item") and not input_blocked:
 		use_heal()
@@ -471,6 +485,11 @@ func _start_dodge(dir: Vector3) -> void:
 		dir = global_transform.basis.z  # 入力なしなら後ろへ（バックステップ）
 	_dodge_dir = Vector3(dir.x, 0.0, dir.z).normalized()
 	_perfect_dodge_done = false
+	if weapons != null:
+		weapons.restart_reload()  # 回避するとリロードはやり直し（G-03）
+	if aiming:
+		_aim_suppressed = true    # 回避すると構えを解く
+		aiming = false
 	_set_state(State.DODGE)
 	_log("回避")
 
@@ -763,6 +782,55 @@ func use_heal() -> bool:
 	_log("回復薬 +%d（残り %d）" % [HEAL_AMOUNT, Discoveries.heals])
 	Discoveries.autosave()
 	return true
+
+
+# 構え（G-03）：銃を持っていて、構えのボタンを押している間。回避で解いたら、離すまで構えない
+func _update_aim() -> void:
+	if not Input.is_action_pressed("aim"):
+		_aim_suppressed = false
+	aiming = weapons.is_gun() and not weapons.is_swapping() and not input_blocked and not _aim_suppressed and Input.is_action_pressed("aim")
+
+
+# 撃つ・リロード（G-03）。MOVE の状態のときだけ（壁のぼり・泳ぎ・攻撃中などは撃てない）
+func _update_gun(shooting: bool) -> void:
+	if not weapons.is_gun() or input_blocked:
+		return
+	if Input.is_action_just_pressed("reload"):
+		weapons.start_reload()
+	if not shooting:
+		return
+	var info := weapons.fire(aim_point(), aiming, attack_mult, [get_rid()])
+	if info["shot"]:
+		var rig := get_tree().get_first_node_in_group("camera_rig")
+		if rig != null:
+			var rc: Array = weapons.recoil()
+			rig.call("add_recoil", rc[0], rc[1])
+	elif info["empty"]:
+		weapons.start_reload()  # 弾切れで撃とうとしたら、予備があればリロードを始める
+
+
+# 狙う所：腰だめでロックオン中ならその敵の体の真ん中、それ以外は画面の真ん中の先
+func aim_point() -> Vector3:
+	if lock_target != null and is_instance_valid(lock_target) and not aiming:
+		return lock_target.global_position + Vector3.UP * float(lock_target.get("bar_height")) * 0.45
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return global_position + _camera_forward() * 30.0 + Vector3.UP
+	var from := cam.global_position
+	var to := from - cam.global_basis.z * AIM_RAY_LENGTH
+	var q := PhysicsRayQueryParameters3D.create(from, to, Weapons.HIT_MASK, [get_rid()])
+	q.collide_with_areas = true
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	return to if hit.is_empty() else hit["position"]
+
+
+func _camera_forward() -> Vector3:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return -global_basis.z
+	var f := -cam.global_basis.z
+	f.y = 0.0
+	return f.normalized() if f.length() > 0.01 else -global_basis.z
 
 
 # 剣の攻撃（パリィ）は、剣を持っていて持ち替え中でないときだけ（G-01）。回避はいつでもよい

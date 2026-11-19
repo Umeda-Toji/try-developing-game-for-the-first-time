@@ -27,6 +27,8 @@ var stamina_ups := 0       # 拾った「最大スタミナ+10」の数
 var attack_ups := 0        # 拾った「攻撃力+5%」の数
 # ④-3 寄り道の敵
 var killed := {}           # 倒した寄り道の敵の番号 → true（リトライしても戻らない）
+# 銃の弾（G-03）："ar" など → {"mag": 弾倉の弾, "reserve": 予備の弾}。最初は弾倉ぶんだけ
+var ammo := {}
 # ④-4 眺めのいい場所
 var vistas := {}           # 見た眺めの番号 → true
 var vista_total := 0       # 街にある眺めのいい場所の数（CityBuilder が入れる）
@@ -106,6 +108,13 @@ func summary_text() -> String:
 	return "\n".join(lines)
 
 
+# 銃の弾の数（無ければ、弾倉ぶんだけ持っている状態にする）
+func ammo_of(id: String) -> Dictionary:
+	if not ammo.has(id):
+		ammo[id] = {"mag": int(Weapons.GUNS[id]["mag"]), "reserve": 0}
+	return ammo[id]
+
+
 # すべて忘れる（はじめから・テスト用）。セーブのファイルは消さない
 func reset() -> void:
 	fragments.clear()
@@ -116,6 +125,7 @@ func reset() -> void:
 	attack_ups = 0
 	killed.clear()
 	vistas.clear()
+	ammo.clear()
 	has_position = false
 
 
@@ -146,6 +156,7 @@ func save_game() -> bool:
 	cfg.set_value("player", "stamina_ups", stamina_ups)
 	cfg.set_value("player", "attack_ups", attack_ups)
 	cfg.set_value("player", "difficulty", Difficulty.current)
+	cfg.set_value("player", "ammo", ammo)
 	if has_position:
 		cfg.set_value("player", "position", saved_position)
 	return cfg.save(save_path) == OK
@@ -175,6 +186,9 @@ func load_game() -> bool:
 	hp_ups = int(cfg.get_value("player", "hp_ups", 0))
 	stamina_ups = int(cfg.get_value("player", "stamina_ups", 0))
 	attack_ups = int(cfg.get_value("player", "attack_ups", 0))
+	var saved_ammo = cfg.get_value("player", "ammo", {})
+	if saved_ammo is Dictionary:
+		ammo = (saved_ammo as Dictionary).duplicate(true)
 	var diff: String = cfg.get_value("player", "difficulty", Difficulty.current)
 	if Difficulty.SETTINGS.has(diff):
 		Difficulty.current = diff

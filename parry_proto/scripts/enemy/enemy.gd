@@ -403,7 +403,7 @@ func receive_attack(attack: Dictionary, _attacker: Node) -> int:
 		_enter_phase2()
 	elif posture >= max_posture and state != State.BROKEN:
 		_break()
-	elif state in [State.IDLE, State.CHASE, State.RECOVER, State.HITSTUN]:
+	elif state in [State.IDLE, State.CHASE, State.RECOVER, State.HITSTUN] and not attack.get("no_flinch", false):
 		# 予兆中・攻撃中は怯まない（スーパーアーマー）→ パリィする意味が生まれる
 		_set_state(State.HITSTUN)
 	stats_changed.emit(self)
