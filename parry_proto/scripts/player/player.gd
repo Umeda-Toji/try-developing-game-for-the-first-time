@@ -68,6 +68,11 @@ const SPRINT_SPEED := 9.5            # 走る速さ（歩きは MOVE_SPEED 6.0�
 const GLIDE_SPEED := 7.0             # 滑空中の前へ進む速さ
 const GLIDE_FALL_SPEED := 1.8        # 滑空中の落ちる速さ（これより速くは落ちない）
 const STAMINA_MAX := 100.0
+# アイテム（W-15 ④-2）
+const HEAL_AMOUNT := 40              # 回復薬1つで戻るHP
+const UPGRADE_HP := 10               # 「最大HP+10」1つで増える最大HP
+const UPGRADE_STAMINA := 10.0        # 「最大スタミナ+10」1つで増える最大スタミナ
+const UPGRADE_ATTACK := 0.05         # 「攻撃力+5%」1つで増える攻撃の倍率
 const STAMINA_COST_DODGE := 20.0     # 回避1回
 const STAMINA_DRAIN_SPRINT := 0.35   # 走っている間、1フレームごと（約3.5秒で 0）
 const STAMINA_DRAIN_GLIDE := 0.3     # 滑空している間、1フレームごと（約5.5秒で 0）
@@ -148,6 +153,9 @@ var parry_window_frames := PARRY_WINDOW_FRAMES
 var perfect_dodge_frames := PERFECT_DODGE_FRAMES
 var state_frame := 0
 var hp := MAX_HP
+var max_hp := MAX_HP           # 強化アイテムで増える（apply_upgrades）
+var max_stamina := STAMINA_MAX
+var attack_mult := 1.0
 var hitstop_frames := 0
 var lock_target: Node3D = null
 
@@ -181,7 +189,10 @@ func _ready() -> void:
 	add_to_group("player")
 	safe_position = global_position
 	hitbox.hit_landed.connect(_on_hitbox_hit)
-	hp_changed.emit(hp, MAX_HP)
+	apply_upgrades()
+	hp = max_hp
+	stamina = max_stamina
+	hp_changed.emit(hp, max_hp)
 	apply_difficulty()
 	_update_visual()  # 最初のポーズを決めておく（タイトル画面でゲームが止まっていても T字のポーズにならないように）
 
@@ -282,6 +293,8 @@ func _state_move() -> void:
 	elif dir.length() > 0.1:
 		_face_dir(dir, 0.25)
 
+	if Input.is_action_just_pressed("use_item"):
+		use_heal()
 	match _take_buffered(["attack_light", "attack_heavy", "dodge"]):
 		"attack_light":
 			_start_attack("L1", true)
@@ -499,7 +512,7 @@ func _on_perfect_dodge() -> void:
 
 func _take_damage(attack: Dictionary, attacker: Node) -> void:
 	hp = max(hp - int(attack["damage"]), 0)
-	hp_changed.emit(hp, MAX_HP)
+	hp_changed.emit(hp, max_hp)
 	hitbox.deactivate()
 	hitstop_frames = int(attack.get("hitstop", 4))
 	GameFeel.shake(float(attack.get("shake", 0.1)), 8)
@@ -538,6 +551,8 @@ func _make_payload(atk: Dictionary) -> Dictionary:
 		p["damage"] = int(p["damage"]) * 2
 		p["posture"] = int(p["posture"]) * 2
 		p["hitstop"] = int(p["hitstop"]) + 3
+	if attack_mult != 1.0:  # 強化アイテム（攻撃力+5%）
+		p["damage"] = int(round(float(p["damage"]) * attack_mult))
 	return p
 
 
@@ -677,9 +692,9 @@ func _respawn(damage: int, why: String) -> void:
 	velocity = Vector3.ZERO
 	gliding = false
 	sprinting = false
-	stamina = STAMINA_MAX
+	stamina = max_stamina
 	hp = max(hp - damage, 0)
-	hp_changed.emit(hp, MAX_HP)
+	hp_changed.emit(hp, max_hp)
 	if hp <= 0:
 		_set_state(State.DEAD)
 		_log("やられた…")
@@ -705,6 +720,32 @@ func _update_jump_and_glide() -> void:
 		gliding = false
 
 
+# 強化アイテムの数から、最大HP・最大スタミナ・攻撃の倍率を決める（W-15 ④-2）
+# picked：今拾ったアイテムの種類。最大HPが増えたら今のHPも足す。最大スタミナが増えたら満タンにする
+func apply_upgrades(picked: String = "") -> void:
+	max_hp = MAX_HP + Discoveries.hp_ups * UPGRADE_HP
+	max_stamina = STAMINA_MAX + Discoveries.stamina_ups * UPGRADE_STAMINA
+	attack_mult = 1.0 + Discoveries.attack_ups * UPGRADE_ATTACK
+	if picked == "hp":
+		hp = mini(hp + UPGRADE_HP, max_hp)
+		_log("最大HP %d" % max_hp)
+	elif picked == "stamina":
+		stamina = max_stamina
+		_log("最大スタミナ %d" % int(max_stamina))
+	hp_changed.emit(hp, max_hp)
+
+
+# 回復薬を使う（Q ／ 十字キー上）。歩いている・立っているときだけ。HPが満タンなら使わない
+func use_heal() -> bool:
+	if Discoveries.heals <= 0 or hp >= max_hp or hp <= 0:
+		return false
+	Discoveries.heals -= 1
+	hp = mini(hp + HEAL_AMOUNT, max_hp)
+	hp_changed.emit(hp, max_hp)
+	_log("回復薬 +%d（残り %d）" % [HEAL_AMOUNT, Discoveries.heals])
+	return true
+
+
 func _use_stamina(amount: float) -> void:
 	stamina = maxf(stamina - amount, 0.0)
 	_stamina_used = true
@@ -718,7 +759,7 @@ func _update_stamina() -> void:
 		_stamina_idle_frames += 1
 	_stamina_used = false
 	if _stamina_idle_frames >= STAMINA_REGEN_DELAY_FRAMES:
-		stamina = minf(stamina + STAMINA_REGEN, STAMINA_MAX)
+		stamina = minf(stamina + STAMINA_REGEN, max_stamina)
 
 
 func _buffer_inputs() -> void:

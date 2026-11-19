@@ -25,6 +25,8 @@ enum State { IDLE, CHASE, TELEGRAPH, ATTACK, RECOVER, STAGGER, BROKEN, HITSTUN, 
 
 @export var display_name := "敵"
 @export var aggro_range := 15.0           # この距離まで近づくと動き出す
+@export var side_id := -1                 # 街の寄り道の敵（W-15 ④-3）の番号。-1 は広場・ボスの敵
+const SIDE_LEASH_MULT := 2.5              # 寄り道の敵は、気づく距離のこの倍より離れると追うのをやめる
 @export var max_hp := 80
 @export var max_posture := 60.0
 @export var move_speed := 3.0
@@ -222,7 +224,10 @@ func _tick() -> void:
 				_set_state(State.CHASE)
 		State.CHASE:
 			_face_target(0.15)
-			if ranged:
+			if side_id >= 0 and dist > aggro_range * SIDE_LEASH_MULT:  # 寄り道の敵は、離れたらあきらめる
+				_desired = Vector3.ZERO
+				_set_state(State.IDLE)
+			elif ranged:
 				_chase_ranged(dist)
 			elif dist > attack_range:
 				_desired = _dir_to_target() * move_speed
@@ -449,6 +454,8 @@ func _die() -> void:
 	_dead_frames = 0
 	remove_from_group("enemies")
 	_log("%s を倒した" % display_name)
+	if side_id >= 0:
+		Discoveries.killed[side_id] = true  # 一度倒した寄り道の敵は、リトライしても戻らない
 
 
 func _on_hitbox_hit(target_hurtbox: Hurtbox) -> void:

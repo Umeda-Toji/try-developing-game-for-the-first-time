@@ -2,6 +2,7 @@
 // res://shaders/ruin_pbr.gdshader
 // 廃墟の表面（リアル版。W-09）。写真から作った CC0 テクスチャ（Poly Haven）を使う
 //  ・三方向から貼る（トリプラナー）：箱の大きさに関係なく、テクスチャが伸びずに同じ細かさで並ぶ
+//    箱の面のように1つの向きしか向いていない所は、その1方向だけ読む（読む回数が1/3になり、軽い）
 //    （世界の座標で貼るので、となりの箱とも模様がつながる）
 //  ・色・凹凸（法線）・ざらざら具合（ラフネス）の3枚。光の計算は Godot 標準のリアルな陰影（PBR）
 //  ・苔：上を向いた面と、地面の近く。苔の写真テクスチャを、ノイズでまだらに重ねる
@@ -52,12 +53,35 @@ vec3 tri_weights(vec3 n) {
 	return w / (w.x + w.y + w.z);
 }
 
+// 三方向から読んで混ぜる。ただし、面がほぼ1つの向き（箱の面）なら、その1方向だけ読む（軽くするため）
 vec4 tri_sample(sampler2D t, vec3 p, vec3 w) {
+	if (w.x > 0.98) { return texture(t, p.zy); }
+	if (w.y > 0.98) { return texture(t, p.xz); }
+	if (w.z > 0.98) { return texture(t, p.xy); }
 	return texture(t, p.zy) * w.x + texture(t, p.xz) * w.y + texture(t, p.xy) * w.z;
 }
 
 // 法線マップを三方向から読んで、世界の向きの法線にする（whiteout 合成）
 vec3 tri_normal(sampler2D t, vec3 p, vec3 w, vec3 n, float strength) {
+	// 箱の面（ほぼ1つの向き）なら、その1方向だけ読む（軽くするため）
+	if (w.x > 0.98 || w.y > 0.98 || w.z > 0.98) {
+		vec3 tn;
+		vec3 r;
+		if (w.x > 0.98) {
+			tn = texture(t, p.zy).xyz * 2.0 - 1.0;
+			tn.xy *= strength;
+			r = vec3(tn.xy + n.zy, abs(tn.z) * n.x).zyx;
+		} else if (w.y > 0.98) {
+			tn = texture(t, p.xz).xyz * 2.0 - 1.0;
+			tn.xy *= strength;
+			r = vec3(tn.xy + n.xz, abs(tn.z) * n.y).xzy;
+		} else {
+			tn = texture(t, p.xy).xyz * 2.0 - 1.0;
+			tn.xy *= strength;
+			r = vec3(tn.xy + n.xy, abs(tn.z) * n.z);
+		}
+		return normalize(r);
+	}
 	vec3 tx = texture(t, p.zy).xyz * 2.0 - 1.0;
 	vec3 ty = texture(t, p.xz).xyz * 2.0 - 1.0;
 	vec3 tz = texture(t, p.xy).xyz * 2.0 - 1.0;

@@ -55,8 +55,10 @@ const BOXES := [
 	[Vector3(2.5, 2, 40), Vector3(1, 4, 1), "OVERPASS", true, F_NONE],
 	[Vector3(-2.5, 2, 34), Vector3(1, 4, 1), "OVERPASS", true, F_NONE],
 	[Vector3(2.5, 2, 34), Vector3(1, 4, 1), "OVERPASS", true, F_NONE],
-	[Vector3(-9.5, 5, 45), Vector3(5, 10, 14), "BUILDING", true, F_PX],         # 左右のビル
-	[Vector3(9.5, 5, 45), Vector3(5, 10, 14), "BUILDING", true, F_NX],
+	[Vector3(-9.5, 5, 40.5), Vector3(5, 10, 5), "BUILDING", true, F_PX],         # 左右のビル（真ん中は街への出口。W-13）
+	[Vector3(-9.5, 5, 49.5), Vector3(5, 10, 5), "BUILDING", true, F_PX],
+	[Vector3(9.5, 5, 40.5), Vector3(5, 10, 5), "BUILDING", true, F_NX],
+	[Vector3(9.5, 5, 49.5), Vector3(5, 10, 5), "BUILDING", true, F_NX],
 	[Vector3(0, 5, 53), Vector3(24, 10, 2), "BUILDING", false, F_NZ],           # 後ろの壁
 	# ---- 2. 花梨通り（床は厚くして、水路の壁を兼ねる）----
 	[Vector3(0, -1.75, 30), Vector3(10, 3.5, 16), "GROUND", true, F_NONE],      # z 38〜22
@@ -70,8 +72,10 @@ const BOXES := [
 	[Vector3(8.5, 3.75, 16), Vector3(7, 14.5, 12), "BUILDING", true, F_NX],
 	# ---- 3. 止まり時計の広場 ----
 	[Vector3(0, -0.5, -1), Vector3(22, 1, 22), "GROUND", true, F_NONE],
-	[Vector3(-13.5, 5, -1), Vector3(5, 10, 22), "BUILDING", true, F_PX],        # 左右のビル
-	[Vector3(13.5, 5, -1), Vector3(5, 10, 22), "BUILDING", true, F_NX],
+	[Vector3(-13.5, 5, -7.5), Vector3(5, 10, 9), "BUILDING", true, F_PX],       # 左右のビル（真ん中は街への出口。W-13）
+	[Vector3(-13.5, 5, 5.5), Vector3(5, 10, 9), "BUILDING", true, F_PX],
+	[Vector3(13.5, 5, -7.5), Vector3(5, 10, 9), "BUILDING", true, F_NX],
+	[Vector3(13.5, 5, 5.5), Vector3(5, 10, 9), "BUILDING", true, F_NX],
 	[Vector3(-9, 5, -13), Vector3(14, 10, 2), "BUILDING", false, F_PZ],         # 奥の壁（真ん中が抜け道の入口）
 	[Vector3(9, 5, -13), Vector3(14, 10, 2), "BUILDING", false, F_PZ],
 	[Vector3(8, 6, -9), Vector3(3, 12, 3), "BUILDING", true, F_PZ],             # 時計塔
@@ -94,11 +98,9 @@ const BOXES := [
 
 # 見えない壁：[中心, 大きさ]（登れない。エリアの外に出ない・扉を飛び越えないため）
 const INVISIBLE_WALLS := [
-	[Vector3(-17, 20, -3), Vector3(1, 40, 116)],    # 左右・前後の外枠
-	[Vector3(17, 20, -3), Vector3(1, 40, 116)],
-	[Vector3(0, 20, 55), Vector3(36, 40, 1)],
-	[Vector3(0, 20, -60), Vector3(36, 40, 1)],
+	# 街の外枠は city_builder.gd（W-13）
 	[Vector3(-15, 26, -44), Vector3(1, 28, 30)],    # ホールの壁の上（扉を越えて入れないように）
+	[Vector3(0, 26, -58.5), Vector3(30, 28, 1)],
 	[Vector3(15, 26, -44), Vector3(1, 28, 30)],
 	[Vector3(0, 26, -29.5), Vector3(30, 28, 1)],
 ]
@@ -202,27 +204,22 @@ static func build(parent: Node3D) -> Dictionary:
 		if kind == "BUILDING":
 			var ground_y := -3.5 if pos.y - size.y * 0.5 < -3.0 else 0.0
 			kit.decorate_building(pos, size, b[4], maxf(ground_y, 0.0), tint)
+			# 裏側（広い街に面した側。W-13）にも窓を付ける。地面の下まで続くビルは除く（水路の壁）
+			if b[4] != F_NONE and b[3] and pos.y - size.y * 0.5 > -1.0:
+				kit.decorate_building(pos, size, -(b[4] as Vector3), 0.0, tint, false)
 	for p in PILLARS:
 		kit.add_pillar(p[0], p[1], p[2], Color.WHITE)
 	# 放置された車（W-10）：見た目＋当たり判定（大きいので、ぶつかる・登れる）
 	for c in CARS:
-		kit.add_car(c[0], c[1], c[2])
-		var col := StaticBody3D.new()
-		col.name = "Car"
-		col.collision_layer = 0
-		col.set_collision_layer_value(1, true)
-		var shape := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = CAR_COLLISION_SIZE
-		shape.shape = box
-		col.add_child(shape)
-		col.transform = Transform3D(Basis(Vector3.UP, c[1]), c[0] + Vector3.UP * CAR_COLLISION_SIZE.y * 0.5)
-		root.add_child(col)
+		add_car(root, kit, c[0], c[1], c[2])
 	for sg in SIGNS:
 		kit.add_sign(sg[0], sg[1], sg[2])
+	# 広い街（W-13）：街・川・見晴らしの塔・外枠と、街の飾り・植物（飾りは下の kit・nature に足す）
+	var nature := NatureKit.new()
+	var city := CityBuilder.new()
+	city.build(root, kit, nature)
 	kit.build(root)
 	# 植物・石・瓦礫・木・街灯（W-11。Poly Haven の CC0 モデルと、コードで作る草）
-	var nature := NatureKit.new()
 	for a in DECOR_AREAS:
 		nature.scatter_area(a[0], a[1], a[2])
 	for t in TREES:
@@ -265,7 +262,8 @@ static func build(parent: Node3D) -> Dictionary:
 	root.add_child(door)
 	var decor := kit.stats.duplicate()
 	decor.merge(nature.stats)
-	return {"root": root, "door": door, "decor": decor}
+	decor.merge(city.stats)
+	return {"root": root, "door": door, "decor": decor, "side_enemies": city.side_spots}
 
 
 # 色合い：写真のテクスチャに掛ける色。白に近いほどテクスチャの色そのまま
@@ -320,6 +318,22 @@ static func _add_box(parent: Node3D, pos: Vector3, size: Vector3, mat: Material,
 	body.add_child(mi)
 	parent.add_child(body)
 	return body
+
+
+# 放置された車：見た目（kit）と当たり判定の箱
+static func add_car(root: Node3D, kit: RuinKit, pos: Vector3, yaw: float, flipped: bool) -> void:
+	kit.add_car(pos, yaw, flipped)
+	var col := StaticBody3D.new()
+	col.name = "Car"
+	col.collision_layer = 0
+	col.set_collision_layer_value(1, true)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = CAR_COLLISION_SIZE
+	shape.shape = box
+	col.add_child(shape)
+	col.transform = Transform3D(Basis(Vector3.UP, yaw), pos + Vector3.UP * CAR_COLLISION_SIZE.y * 0.5)
+	root.add_child(col)
 
 
 static func _add_invisible_wall(parent: Node3D, pos: Vector3, size: Vector3) -> void:

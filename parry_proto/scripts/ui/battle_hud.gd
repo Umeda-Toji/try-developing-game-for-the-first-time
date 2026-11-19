@@ -131,12 +131,14 @@ func _make_label() -> Label:
 # 毎フレームの更新
 # =========================================================
 func _update_player() -> void:
-	player_hp_bar.max_value = Player.MAX_HP
+	player_hp_bar.max_value = player.max_hp
 	player_hp_bar.value = player.hp
-	_player_label.text = "HP %d / %d" % [player.hp, Player.MAX_HP]
-	var low := float(player.hp) <= float(Player.MAX_HP) * PLAYER_HP_LOW_RATIO
+	_player_label.text = "HP %d / %d" % [player.hp, player.max_hp]
+	if Discoveries.heals > 0:  # 回復薬を持っていたら数を出す（W-15）
+		_player_label.text += "　　回復薬 ×%d（Q ／ 十字キー上）" % Discoveries.heals
+	var low := float(player.hp) <= float(player.max_hp) * PLAYER_HP_LOW_RATIO
 	_player_fill.bg_color = COLOR_PLAYER_HP_LOW if low else COLOR_PLAYER_HP
-	stamina_bar.max_value = Player.STAMINA_MAX
+	stamina_bar.max_value = player.max_stamina
 	stamina_bar.value = player.stamina
 	_stamina_fill.bg_color = COLOR_STAMINA_EMPTY if player.stamina <= 0.0 else COLOR_STAMINA
 

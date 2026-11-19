@@ -34,6 +34,7 @@ const COLLAPSED_FLOOR_RATE := 0.55  # 屋上から崩れた床が突き出てい
 const CAR_PAINTS := [Color(0.55, 0.62, 0.7), Color(0.68, 0.38, 0.32), Color(0.85, 0.83, 0.78), Color(0.4, 0.46, 0.36), Color(0.7, 0.62, 0.45)]
 # ---- 描く距離 ----
 const MEDIUM_VISIBLE_DISTANCE := 70.0   # 窓・ツタ・葉
+const TILE := 80.0                      # 飾りをまとめて描くマスの大きさ（m）。遠いマスは描かない
 
 var rng := RandomNumberGenerator.new()
 var _items := {}     # 種類 → {"t": Array[Transform3D], "c": Array[Color]}
@@ -48,11 +49,12 @@ func _init() -> void:
 # 建物の飾り
 # ---------------------------------------------------------
 # face：窓を付ける面の向き（外向き）。Vector3.ZERO なら窓なし。ground_y：その建物の前の地面の高さ
-func decorate_building(center: Vector3, size: Vector3, face: Vector3, ground_y: float, tint: Color) -> void:
+# roof：崩れた屋上の塊も足すか（同じ建物の2つ目の面からは false にする）
+func decorate_building(center: Vector3, size: Vector3, face: Vector3, ground_y: float, tint: Color, roof: bool = true) -> void:
 	var top := center.y + size.y * 0.5
 	var bottom := center.y - size.y * 0.5
 	# 屋上：崩れてギザギザ（上に高さの違う塊をいくつか載せる）
-	var blocks := rng.randi_range(2, 5)
+	var blocks := rng.randi_range(2, 5) if roof else 0
 	for i in blocks:
 		var w := rng.randf_range(1.0, 3.2)
 		var d := rng.randf_range(1.0, maxf(size.z, size.x) * 0.4)
@@ -192,16 +194,13 @@ func add_car(base: Vector3, yaw: float, flipped: bool) -> void:
 	var root := Transform3D(Basis(Vector3.UP, yaw), base)
 	if flipped:
 		root = root * Transform3D(Basis(Vector3.RIGHT, PI), Vector3.UP * 1.55)  # 屋根を下にして転がっている
-	var parts := [
-		["car_body", Vector3(0, 0.55, 0), Vector3(1.8, 0.7, 4.3), paint],
-		["car_body", Vector3(0, 1.12, 0.25), Vector3(1.6, 0.5, 2.2), paint.darkened(0.05)],
-		["car_glass", Vector3(0, 1.12, 0.25), Vector3(1.64, 0.4, 2.0), Color(0.12, 0.14, 0.15)],
-	]
-	for p in parts:
-		_add(p[0], root * Transform3D(Basis.from_scale(p[2]), p[1]), p[3])
-	for wx in [-0.85, 0.85]:
+	# 車体（ShapeKit.car_mesh：ボンネット・斜めの窓・屋根・トランク・バンパー・ライト）
+	_add("car", root, paint)
+	# タイヤ：空気が抜けて少し沈んだものもある
+	for wx in [-0.82, 0.82]:
 		for wz in [-1.35, 1.35]:
-			_add("wheel", root * Transform3D(Basis(Vector3.BACK, PI * 0.5).scaled(Vector3(0.66, 0.24, 0.66)), Vector3(wx, 0.33, wz)), Color(0.1, 0.1, 0.1))
+			var sink := rng.randf_range(0.0, 0.08) if rng.randf() < 0.4 else 0.0
+			_add("wheel", root * Transform3D(Basis.IDENTITY, Vector3(wx, 0.33 - sink, wz)), Color.WHITE)
 	# 窓の下から草が生えている（中まで植物が入りこんでいる）
 	for i in 3:
 		var leaf_p := root * Vector3(rng.randf_range(-0.8, 0.8), 0.9, rng.randf_range(-1.8, 1.8))
@@ -249,14 +248,14 @@ func build(parent: Node3D) -> void:
 		"rail": [WorldMaterials.flat(0.5), MEDIUM_VISIBLE_DISTANCE, true, null],
 		"rebar": [WorldMaterials.flat(0.7), MEDIUM_VISIBLE_DISTANCE * 0.8, false, null],
 		"chunk": [WorldMaterials.make("rubble"), MEDIUM_VISIBLE_DISTANCE, true, ShapeKit.rock_chunk(2)],
-		"car_body": [WorldMaterials.make("rubble"), MEDIUM_VISIBLE_DISTANCE * 1.5, true, ShapeKit.beveled_box(Vector3.ONE, 0.12)],
-		"car_glass": [WorldMaterials.flat(0.15), MEDIUM_VISIBLE_DISTANCE * 1.5, false, ShapeKit.beveled_box(Vector3.ONE, 0.1)],
-		"wheel": [WorldMaterials.flat(0.9), MEDIUM_VISIBLE_DISTANCE, true, _wheel_mesh()],
+		"car": [_car_material(), MEDIUM_VISIBLE_DISTANCE * 1.5, true, ShapeKit.car_mesh()],
+		"wheel": [WorldMaterials.flat(0.9), MEDIUM_VISIBLE_DISTANCE, true, ShapeKit.wheel_mesh()],
 	}
 	var box := BoxMesh.new()
 	box.size = Vector3.ONE
-	for kind in _items.keys():
-		var items: Dictionary = _items[kind]
+	for key in _items.keys():
+		var kind: String = String(key).get_slice("|", 0)
+		var items: Dictionary = _items[key]
 		var transforms: Array = items["t"]
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -268,30 +267,32 @@ func build(parent: Node3D) -> void:
 			mm.set_instance_transform(i, transforms[i])
 			mm.set_instance_color(i, items["c"][i])
 		var mmi := MultiMeshInstance3D.new()
-		mmi.name = "Ruin_" + kind
+		mmi.name = "Ruin_" + String(key).replace("|", "_").replace("-", "m")
 		mmi.multimesh = mm
 		mmi.material_override = cfg[0]
-		mmi.visibility_range_end = cfg[1]
+		mmi.visibility_range_end = cfg[1] + TILE * 0.75  # マスの真ん中から測るので、マスの大きさぶん足す
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if cfg[2] else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mmi.add_to_group("ruin_decor")
 		parent.add_child(mmi)
-		stats[kind] = transforms.size()
 
 
+# 種類と、置く場所のマス（TILE m 四方）ごとに分けて集める。マスごとに描くので、遠いマスは描かない
 func _add(kind: String, xform: Transform3D, color: Color) -> void:
-	if not _items.has(kind):
-		_items[kind] = {"t": [], "c": []}
-	_items[kind]["t"].append(xform)
-	_items[kind]["c"].append(color)
+	var key := "%s|%d|%d" % [kind, floori(xform.origin.x / TILE), floori(xform.origin.z / TILE)]
+	if not _items.has(key):
+		_items[key] = {"t": [], "c": []}
+	_items[key]["t"].append(xform)
+	_items[key]["c"].append(color)
+	stats[kind] = stats.get(kind, 0) + 1
 
 
-static func _wheel_mesh() -> CylinderMesh:
-	var m := CylinderMesh.new()
-	m.top_radius = 0.5
-	m.bottom_radius = 0.5
-	m.height = 1.0
-	m.radial_segments = 14
-	return m
+# 車の塗装：あせた塗装に、汚れ（コンクリートの写真テクスチャを細かく）を重ねる。窓は頂点の色で暗い
+static func _car_material() -> ShaderMaterial:
+	var mat := WorldMaterials.make("rubble")
+	mat.set_shader_parameter("uv_scale", 1.2)
+	mat.set_shader_parameter("moss_top", 0.25)
+	mat.set_shader_parameter("normal_strength", 0.4)
+	return mat
 
 
 # 位置・大きさ・回転（ラジアン）から、大きさ1の箱を置く変換を作る

@@ -19,6 +19,10 @@ const VIEWS := [
 	[Vector3(0, 4, -32), Vector3(0, 2, -50)],       # 旧市民ホール
 	[Vector3(12, 14, 50), Vector3(0, 0, 15)],       # 上から
 	[Vector3(-1.5, 2.0, 37.5), Vector3(2.2, 2.0, 43)],  # スタートの看板（プレイヤーが近くにいるので文章が出ている）
+	[Vector3(-60, 95, 170), Vector3(10, 0, 10)],    # 広い街の全体（上空から。W-13）
+	[Vector3(-30, 3, -1), Vector3(0, 2, -1)],       # 広場の西の出口から、広場を見る
+	[Vector3(62, 2.2, 15), Vector3(58, 3, -40)],    # 広い街の通り（地面の高さ。W-13 ③）
+	[Vector3(0.6, 1.7, 30.0), Vector3(3.4, 0.7, 34.0)],  # 放置された車（近くから。W-14）
 ]
 
 var _main: Node
@@ -39,12 +43,28 @@ func _ready() -> void:
 	_main.add_child(_cam)
 	_cam.make_current()
 	_main._hud_layer.visible = false
+	# -- --world-views --from=8：8番目の景色から映す（録画を短くしたいとき）
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--from="):
+			_frame = (int(a.get_slice("=", 1)) - 1) * VIEW_FRAMES
 	# 余裕を測るため、この確認のときだけ 60fps の上限と垂直同期を外す（遊ぶときは 60fps のまま）
 	# -- --world-views --low ／ --high：画質を決めて測る（保存はしない。ふだんはポーズメニューで選んだ画質）
 	var args := OS.get_cmdline_user_args()
 	if "--low" in args or "--high" in args:
 		GraphicsSettings.current = GraphicsSettings.LOW if "--low" in args else GraphicsSettings.HIGH
 		GraphicsSettings.apply(_main._environment, get_viewport(), _main._sun, Palette.FOG_DENSITY)
+	# -- --off=ssil,ssao,vol,glow,msaa,shadow：高画質の効果を1つずつ切って、どれが重いか調べる（調べるとき用）
+	for a in args:
+		if a.begins_with("--off="):
+			var env: Environment = _main._environment
+			for f in a.get_slice("=", 1).split(","):
+				match f:
+					"ssil": env.ssil_enabled = false
+					"ssao": env.ssao_enabled = false
+					"vol": env.volumetric_fog_enabled = false
+					"glow": env.glow_enabled = false
+					"msaa": get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+					"shadow": _main._sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	if "--uncapped" in OS.get_cmdline_user_args():
 		Engine.max_fps = 0
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)

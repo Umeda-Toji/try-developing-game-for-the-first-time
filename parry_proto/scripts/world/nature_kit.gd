@@ -35,6 +35,7 @@ var stats := {}            # 種類 → 数
 var _groups := {}          # "エリア番号|種類|変種" → {"mesh", "mat", "t": [], "c": [], "dist", "shadow"}
 var _variants := {}        # モデル名 → [{mesh, xform}]
 var _area := 0
+var _exclude: Array = []    # scatter_area で、置かない長方形
 
 
 func _init() -> void:
@@ -70,29 +71,36 @@ func variants(name: String) -> Array:
 # 置く
 # ---------------------------------------------------------
 # エリア（長方形）に、草・植物・瓦礫・石を散らす。lane_half：道の真ん中の空ける幅
-func scatter_area(center: Vector3, size: Vector2, lane_half: float) -> void:
+# density：数の倍率（広い街の通りは少なめにする）
+# exclude：この長方形（x, z）の中には置かない（一本道や川。11/19：マスごと飛ばすと草のない所ができたため）
+# model_density：Poly Haven の植物モデル（1つ数千ポリゴンと重い）の数の倍率。広い街の通りは少なくする
+func scatter_area(center: Vector3, size: Vector2, lane_half: float, density: float = 1.0, exclude: Array = [], model_density: float = 1.0) -> void:
 	_area += 1
-	var area := size.x * size.y
+	_exclude = exclude
+	var model_area := size.x * size.y * density * model_density
+	var area := size.x * size.y * density
 	# 草のかたまり：道の真ん中は少なめ
 	for i in int(area * GRASS_PER_M2):
 		var p := _random_point(center, size, 0.0)
-		if lane_half > 0.0 and absf(p.x - center.x) < lane_half and rng.randf() < 0.75:
+		if _is_excluded(p) or (lane_half > 0.0 and absf(p.x - center.x) < lane_half and rng.randf() < 0.75):
 			continue
 		var w := rng.randf_range(0.5, 1.1)
 		var h := rng.randf_range(0.3, 0.75)
 		var xf := Transform3D(Basis(Vector3.UP, rng.randf_range(-PI, PI)).scaled(Vector3(w, h, w)), p)
 		_add("grass", ShapeKit.card_mesh(), _grass_material(), xf, Color(1, 1, 1).darkened(rng.randf_range(0.0, 0.3)).lerp(Color(1.1, 1.0, 0.7), rng.randf() * 0.3), PLANT_VISIBLE_DISTANCE, false)
 	# Poly Haven の植物：道の端に寄せる
-	_scatter_models("fern_02", area * FERN_PER_M2, center, size, lane_half, 0.8, 1.5)
-	_scatter_models("nettle_plant", area * NETTLE_PER_M2, center, size, lane_half, 1.0, 2.0)
-	_scatter_models("weed_plant_02", area * WEED_PER_M2, center, size, lane_half, 1.2, 2.4)
-	_scatter_models("shrub_03", area * SHRUB_PER_M2, center, size, lane_half, 1.2, 2.2)
-	_scatter_models("shrub_04", area * SHRUB_PER_M2, center, size, lane_half, 1.5, 3.0)
+	_scatter_models("fern_02", model_area * FERN_PER_M2, center, size, lane_half, 0.8, 1.5)
+	_scatter_models("nettle_plant", model_area * NETTLE_PER_M2, center, size, lane_half, 1.0, 2.0)
+	_scatter_models("weed_plant_02", model_area * WEED_PER_M2, center, size, lane_half, 1.2, 2.4)
+	_scatter_models("shrub_03", model_area * SHRUB_PER_M2, center, size, lane_half, 1.2, 2.2)
+	_scatter_models("shrub_04", model_area * SHRUB_PER_M2, center, size, lane_half, 1.5, 3.0)
 	# 苔むした石
-	_scatter_models("rock_moss_set_01", area * MOSS_ROCK_PER_M2, center, size, lane_half, 0.25, 0.6, ROCK_VISIBLE_DISTANCE, true)
+	_scatter_models("rock_moss_set_01", model_area * MOSS_ROCK_PER_M2, center, size, lane_half, 0.25, 0.6, ROCK_VISIBLE_DISTANCE, true)
 	# 瓦礫：ごつごつした塊にコンクリートの写真テクスチャ
 	for i in int(area * RUBBLE_PER_M2):
 		var p := _random_point(center, size, lane_half)
+		if _is_excluded(p):
+			continue
 		var s := rng.randf_range(0.2, 0.9)
 		var basis := Basis.from_euler(Vector3(rng.randf_range(-0.25, 0.25), rng.randf_range(-PI, PI), rng.randf_range(-0.25, 0.25))).scaled(Vector3(s, s, s))
 		var col := Color.WHITE.darkened(rng.randf_range(0.0, 0.35))
@@ -192,9 +200,18 @@ func _scatter_models(name: String, count: float, center: Vector3, size: Vector2,
 	for i in int(count):
 		var v: Dictionary = list[rng.randi() % list.size()]
 		var p := _random_point(center, size, lane_half)
+		if _is_excluded(p):
+			continue
 		var s := rng.randf_range(smin, smax)
 		var xf := Transform3D(Basis(Vector3.UP, rng.randf_range(-PI, PI)).scaled(Vector3.ONE * s), p) * (v["xform"] as Transform3D)
 		_add("%s_%d" % [name, list.find(v)], v["mesh"], null, xf, Color.WHITE, dist, shadow)
+
+
+func _is_excluded(p: Vector3) -> bool:
+	for r in _exclude:
+		if (r as Rect2).has_point(Vector2(p.x, p.z)):
+			return true
+	return false
 
 
 func _random_point(center: Vector3, size: Vector2, lane_half: float) -> Vector3:

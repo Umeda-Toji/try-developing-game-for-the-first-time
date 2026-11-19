@@ -3,7 +3,9 @@
 #
 # 画質の切り替え（U-09）。「高画質」と「軽い」の2つ
 #  ・高画質：SSAO（すき間・角の暗さ）、SSIL（跳ね返った光）、グロー（明るい所のにじみ）、
-#           ボリュームフォグ（光の筋が見える霧）、細かい影（4分割）、解像度100%、アンチエイリアス（MSAA 2x）
+#           ボリュームフォグ（光の筋が見える霧）、細かい影（4分割）、
+#           解像度80%を FSR（くっきり見せる拡大）で画面に合わせる、アンチエイリアス FXAA
+#           （11/19：広い街を足して重くなったので、解像度100%・MSAA 2x から変えた）
 #  ・軽い：上の重い効果をすべて切る。解像度75%、影は分割なし、普通の霧（11/18 より前の設定）
 #  ・選んだ画質は user://settings.cfg に保存して、次に起動したときも同じにする
 #  ・ポーズメニューの「画質」ボタンで切り替える（すぐ反映される）
@@ -25,7 +27,7 @@ const VOLUMETRIC_DENSITY := 0.012
 const VOLUMETRIC_ANISOTROPY := 0.55    # 太陽の方向を見ると明るく見える霧
 const SHADOW_DISTANCE_HIGH := 80.0
 const SHADOW_DISTANCE_LOW := 40.0
-const SCALE_HIGH := 1.0
+const SCALE_HIGH := 0.8
 const SCALE_LOW := 0.75
 
 static var current := HIGH
@@ -73,7 +75,9 @@ static func apply(env: Environment, viewport: Viewport, sun: DirectionalLight3D,
 	env.fog_density = fog_density * (0.4 if high else 1.0)
 	if viewport != null:
 		viewport.scaling_3d_scale = SCALE_HIGH if high else SCALE_LOW
-		viewport.msaa_3d = Viewport.MSAA_2X if high else Viewport.MSAA_DISABLED
+		viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if high else Viewport.SCALING_3D_MODE_BILINEAR
+		viewport.msaa_3d = Viewport.MSAA_DISABLED
+		viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
 	if sun != null:
 		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if high else DirectionalLight3D.SHADOW_ORTHOGONAL
 		sun.directional_shadow_max_distance = SHADOW_DISTANCE_HIGH if high else SHADOW_DISTANCE_LOW

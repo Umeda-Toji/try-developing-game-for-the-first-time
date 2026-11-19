@@ -11,6 +11,7 @@
 #  6. 下に落ちると戻される（ダメージ10）
 #  7. 広場の敵を全部倒すと、ホールの扉が開く
 #  8. 看板・端末（W-08）：7つある（文章は80字以内）／遠いと文章は出ない／近づくと出る／離れると消える
+#  9. 記録の断片（W-15）：街に10ある（建物の中ではなく、下に地面がある）／近づくと「1 / 10」と出る／同じ断片は2度数えない
 #  敵は動かさない
 extends Node
 
@@ -115,7 +116,7 @@ func _physics_process(_delta: float) -> void:
 				_results["スタミナが切れると溺れて戻される（HP %d → %d、z %.1f）" % [_hp_before, _p.hp, _p.global_position.z]] = (
 					_p.hp == _hp_before - Player.DROWN_DAMAGE and _p.global_position.z < -20.0 and _p.state == Player.State.MOVE)
 				_hp_before = _p.hp
-				_p.global_position = Vector3(14.5, 3.0, 24.0)  # ビルの外側（床がない）
+				_p.global_position = Vector3(CityBuilder.CITY_MAX.x + 20.0, 3.0, 0.0)  # 街の外（床がない）
 				_p.velocity = Vector3.ZERO
 				_next()
 			elif _t > TIMEOUT:
@@ -150,6 +151,21 @@ func _physics_process(_delta: float) -> void:
 				_place(Vector3(0, 0.1, 30))
 			if _t == 100:
 				_results["離れると看板の文章が消える"] = not _sign.label.visible
+				_check_fragments()
+				Discoveries.reset()
+				_sign = get_tree().get_nodes_in_group("lore_fragments")[0]
+				_place(_sign.global_position + Vector3(0, 0.1, 2.0))
+				_next()
+		8:  # 記録の断片を読む
+			if _t == 30:
+				var toast := _main.get_node("DiscoveryToast") if _main.has_node("DiscoveryToast") else _main.find_child("DiscoveryToast", true, false)
+				_results["記録の断片を読むと「1 / %d」と出る（%s）" % [CityBuilder.FRAGMENTS.size(), toast.label.text]] = (
+					Discoveries.fragments.size() == 1 and toast.label.text.contains("1 / %d" % CityBuilder.FRAGMENTS.size()) and toast.label.modulate.a > 0.5)
+				_place(Vector3(0, 0.1, 30))
+			if _t == 60:
+				_place(_sign.global_position + Vector3(0, 0.1, 2.0))
+			if _t == 90:
+				_results["同じ断片は2度数えない"] = Discoveries.fragments.size() == 1
 				_finish()
 
 
@@ -178,21 +194,60 @@ func _check_layout() -> void:
 	_results["道の床がつながっている（だめ：%s）" % str(bad)] = ok
 	# 廃墟の飾り（W-06）：種類ごとに MultiMesh でまとめて描いている。シードが同じなら、作り直しても同じ街になる
 	var decor: Dictionary = _main.world_decor
-	var kinds := ["window", "frame", "rail", "rebar", "chunk", "car_body", "wheel", "vine", "leaf", "block", "grass", "fern", "nettle", "weed", "shrub", "rock", "rubble", "tree", "crown", "trunk", "branch", "log", "lamp"]
+	var kinds := ["window", "frame", "rail", "rebar", "chunk", "car", "wheel", "vine", "leaf", "block", "grass", "fern", "nettle", "weed", "shrub", "rock", "rubble", "tree", "crown", "trunk", "branch", "log", "lamp"]
 	var all_kinds := kinds.all(func(k): return decor.get(k, 0) > 0)
 	var missing := kinds.filter(func(k): return decor.get(k, 0) == 0)
 	_results["廃墟の飾り・植物ができている（足りない：%s）" % str(missing)] = all_kinds and not get_tree().get_nodes_in_group("nature_decor").is_empty()
 	var tmp := Node3D.new()
 	add_child(tmp)
 	var again: Dictionary = WorldBuilder.build(tmp)["decor"]
-	var first_a := (_main.get_node("World/Ruin_window") as MultiMeshInstance3D).multimesh.get_instance_transform(5)
-	var first_b := (tmp.get_node("World/Ruin_window") as MultiMeshInstance3D).multimesh.get_instance_transform(5)
+	var wname := ""
+	for n in _main.get_node("World").get_children():
+		if String(n.name).begins_with("Ruin_window"):
+			wname = n.name
+			break
+	var first_a := (_main.get_node("World/" + wname) as MultiMeshInstance3D).multimesh.get_instance_transform(5)
+	var first_b := (tmp.get_node("World/" + wname) as MultiMeshInstance3D).multimesh.get_instance_transform(5)
 	_results["シード固定：作り直しても同じ街になる"] = again == decor and first_a.is_equal_approx(first_b)
 	tmp.free()
+	# 広い街（W-13）：街の地面がある・広場と落ち高架から街へ出られる（建物にふさがれていない）・川・塔
+	var space := _p.get_world_3d().direct_space_state
+	var city_ok := true
+	for xz in [Vector2(60, 0), Vector2(-60, 80), Vector2(0, -100), Vector2(100, 120)]:
+		var q3 := PhysicsRayQueryParameters3D.create(Vector3(xz.x, 70, xz.y), Vector3(xz.x, -10, xz.y), 1)
+		var h3 := space.intersect_ray(q3)
+		city_ok = city_ok and not h3.is_empty()
+	_results["広い街：街のあちこちに地面か建物がある"] = city_ok
+	var blocked: Array[String] = []
+	for seg in [[Vector3(0, 1, -1), Vector3(30, 1, -1)], [Vector3(0, 1, -1), Vector3(-30, 1, -1)], [Vector3(0, 1, 45), Vector3(25, 1, 45)], [Vector3(0, 1, 45), Vector3(-25, 1, 45)]]:
+		var q4 := PhysicsRayQueryParameters3D.create(seg[0], seg[1], 1)
+		var h4 := space.intersect_ray(q4)
+		if not h4.is_empty() and (h4["position"] as Vector3).distance_to(seg[0]) < 22.0:
+			blocked.append("%s→%s で %s（%s）" % [str(seg[0]), str(seg[1]), (h4["collider"] as Node).name, str(h4["position"])])
+	_results["広い街：広場と落ち高架の左右から街へ出られる（ふさがれている：%s）" % str(blocked)] = blocked.is_empty()
+	var decor2: Dictionary = _main.world_decor
+	_results["広い街：ビル %d・廃墟 %d・空き地 %d、川と見晴らしの塔" % [decor2.get("building", 0), decor2.get("ruin", 0), decor2.get("park", 0)]] = (
+		decor2.get("building", 0) > 30 and get_tree().get_nodes_in_group("water").size() >= 2 and not get_tree().get_nodes_in_group("tower_top_ledge").is_empty())
 	# 見えない壁：広場の上空から外へ向かうと当たる
-	var q2 := PhysicsRayQueryParameters3D.create(Vector3(0, 25, 0), Vector3(40, 25, 0), 1)
+	var q2 := PhysicsRayQueryParameters3D.create(Vector3(0, 50, 0), Vector3(300, 50, 0), 1)
 	var hit2 := _p.get_world_3d().direct_space_state.intersect_ray(q2)
 	_results["エリアの外は見えない壁で出られない"] = not hit2.is_empty() and (hit2["collider"] as Node).is_in_group("invisible_wall")
+
+
+# 記録の断片：数・文章の長さ・置いた場所（建物の中ではない・下に地面がある）
+func _check_fragments() -> void:
+	var frags := get_tree().get_nodes_in_group("lore_fragments")
+	var space := _p.get_world_3d().direct_space_state
+	var bad: Array[String] = []
+	for f in frags:
+		var pos: Vector3 = f.global_position
+		var q := PhysicsRayQueryParameters3D.create(pos + Vector3.UP * 30.0, pos + Vector3.DOWN * 5.0, 1)
+		var h := space.intersect_ray(q)
+		if h.is_empty() or (h["position"] as Vector3).y > pos.y + 0.5:
+			bad.append("%s（%s）" % [f.name, str(pos)])
+		if f.text.length() > 80:
+			bad.append("%s の文章が長い" % f.name)
+	_results["記録の断片が街に%d ある（置き場所がおかしい：%s）" % [frags.size(), str(bad)]] = frags.size() == CityBuilder.FRAGMENTS.size() and bad.is_empty()
 
 
 func _place(pos: Vector3) -> void:

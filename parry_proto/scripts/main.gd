@@ -23,6 +23,40 @@ const ENEMY_SWORD_LENGTH := 0.9
 const VISUAL_PARAMS := ["model_path", "sword_path", "head_path", "outfit_texture",
 	"sword_length", "sword_model_length", "left_sword_path"]
 const ZAKO_MODEL := "res://models/animations/UAL1_Standard.glb"  # アニメ素材の中のマネキン
+# 敵の種類（ザコ・重装兵・双剣士・魔法使い）：[表示名, 当たり判定の大きさ, 設定]。広場と、街の寄り道の敵（W-15 ④-3）で使う
+const ENEMY_KINDS := {
+	"zako": ["ザコ敵", Vector3(0.9, 1.6, 0.9), {
+		"feint_every": 3,  # 3回に1回フェイント攻撃（E-10）
+		"model_path": ZAKO_MODEL,  # マネキンを body_color（赤）で塗る（P-16）
+		"sword_path": "res://models/weapons/Sword_2.fbx",
+	}],
+	"heavy": ["重装兵", Vector3(1.1, 1.95, 1.1), {
+		"aggro_range": 10.0, "max_hp": 120, "max_posture": 100.0, "move_speed": 2.0, "attack_range": 2.6,
+		"telegraph_frames": 50, "glint_frames": 10, "recover_frames": 45, "damage": 25,
+		"unparryable_every": 2, "body_color": Color(0.45, 0.47, 0.52),
+		"model_path": ZAKO_MODEL, "sword_path": "res://models/weapons/Hammer_Double.fbx",
+		"sword_length": 1.1, "sword_model_length": 4.97,
+	}],
+	"swift": ["双剣士", Vector3(0.8, 1.45, 0.8), {
+		"aggro_range": 10.0, "max_hp": 50, "max_posture": 40.0, "move_speed": 4.5, "attack_range": 1.9,
+		"telegraph_frames": 24, "glint_frames": 10, "combo_hits": 3, "combo_gap_frames": 14,
+		"recover_frames": 25, "damage": 8, "body_color": Color(0.25, 0.65, 0.35),
+		"model_path": ZAKO_MODEL, "sword_path": "res://models/weapons/Dagger.fbx",
+		"left_sword_path": "res://models/weapons/Dagger.fbx", "sword_length": 0.5, "sword_model_length": 2.61,
+		"attack_anims": [
+			{"clip": "ual2/Sword_Regular_A", "from": 0.05, "key": 0.21, "to": 0.43},
+			{"clip": "ual2/Sword_Regular_B", "from": 0.05, "key": 0.22, "to": 0.53},
+		],
+	}],
+	"caster": ["魔法使い", Vector3(0.9, 1.7, 0.9), {
+		"ranged": true, "aggro_range": 12.0, "max_hp": 40, "max_posture": 40.0, "move_speed": 2.5,
+		"keep_distance_min": 5.0, "keep_distance_max": 8.0, "projectile_speed": 8.0,
+		"telegraph_frames": 40, "glint_frames": 10, "recover_frames": 30, "attack_cooldown_frames": 70,
+		"damage": 12, "body_color": Color(0.3, 0.4, 0.95), "model_path": ZAKO_MODEL,
+		"attack_anims": [{"clip": "ual1/Spell_Simple_Shoot", "windup_clip": "ual1/Spell_Simple_Enter",
+			"from": 0.0, "key": 0.08, "to": 0.5}],
+	}],
+}
 const BOSS_MODEL := "res://models/outfits/Female_Ranger.gltf"
 const BOSS_HEAD := "res://models/characters/Superhero_Female_FullBody.gltf"
 const BOSS_OUTFIT_TEXTURE := "res://models/outfits/T_Ranger_3_BaseColor.png"  # 服の色違い（プレイヤーと見分ける）
@@ -44,10 +78,13 @@ const TEST_SCRIPTS := {
 	"--movement-test": "res://tests/movement_test.gd",  # ジャンプ・滑空・走る・スタミナ（M-01〜M-04）
 	"--enemy-bars-test": "res://tests/enemy_bars_test.gd",  # 敵の頭の上の体力バー（U-08）
 	"--world-test": "res://tests/world_test.gd",  # 白砂市のエリア・壁のぼり・泳ぎ（W-01〜、M-05・M-06）
-	"--world-views": "res://tests/world_views.gd",  # 景色の確認用（テストではない。エリアを順に映す）
+	"--world-views": "res://tests/world_views.gd",
+	"--items-test": "res://tests/items_test.gd",  # 回復・強化アイテム（W-15 ④-2）
+	"--side-enemies-test": "res://tests/side_enemies_test.gd",  # 街の寄り道の敵（W-15 ④-3）
+	"--vista-test": "res://tests/vista_test.gd",  # 眺めのいい場所（W-15 ④-4）  # 景色の確認用（テストではない。エリアを順に映す）
 }
 const TITLE_TEST_FLAG := "--title-test"  # テストのうち、これだけはタイトル画面を出す
-const WORLD_TEST_FLAGS := ["--world-test", "--world-views"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
+const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
 const SKIP_TITLE_KEY := "skip_title"     # リトライのとき true にしておく（読み直した後はタイトルを出さない）
 # タイトル画面の後ろに映す景色（部屋全体を斜め上から。手前にプレイヤー、奥にザコとボス）
 const TITLE_CAMERA_POS := Vector3(-5.0, 3.2, 9.5)
@@ -61,6 +98,11 @@ var boss: Enemy
 var heavy: Enemy   # 重装兵（E-12）
 var swift: Enemy   # 双剣士（E-13）
 var caster: Enemy  # 魔法使い（E-14）
+var side_enemies: Array[Enemy] = []  # 街の寄り道の敵（W-15 ④-3）
+var _side_check_left := 0
+const SIDE_AGGRO_RANGE := 12.0      # 寄り道の敵が気づく距離（m）
+const SIDE_SLEEP_DISTANCE := 50.0   # これより遠い寄り道の敵は止めておく（m）
+const SIDE_CHECK_FRAMES := 20       # 止める・動かすを確かめる間隔（フレーム）
 var battle_hud: BattleHud  # HPバー・体幹バー（U-02）
 var enemy_bars: EnemyBars  # 敵の頭の上の体力バー（U-08）
 var result_screen: ResultScreen  # 勝利／敗北の画面（U-03）
@@ -73,6 +115,8 @@ var title_screen: TitleScreen  # タイトル画面（U-06）
 var _hud_layer: CanvasLayer
 var use_world := true      # true：白砂市のエリア（W-01〜）／false：20m四方の部屋（自動テスト用）
 var boss_door: BossDoor    # 旧市民ホールの扉（エリアのときだけ）
+var _side_spots: Array = []
+var vista_director: VistaDirector  # 眺めのいい場所でカメラを動かす（W-15 ④-4。エリアのときだけ）  # 寄り道の敵を置く場所と種類（CityBuilder.side_spots）
 var world_decor := {}      # 自動で作った飾りの数（種類 → 数。テスト・報告用）
 var _environment: Environment
 var _sun: DirectionalLight3D
@@ -105,42 +149,15 @@ func _ready() -> void:
 	player = _build_player(_spawn("player", Vector3(0, 0.1, 6)))
 	if use_world:
 		player.kill_y = WorldBuilder.KILL_Y
-	enemies.append(_build_enemy("ザコ敵", _spawn("zako", Vector3(-3, 0.1, -2)), Vector3(0.9, 1.6, 0.9), {
-		"feint_every": 3,  # 3回に1回フェイント攻撃（E-10）
-		"model_path": ZAKO_MODEL,  # マネキンを body_color（赤）で塗る（P-16）
-		"sword_path": "res://models/weapons/Sword_2.fbx",
-	}))
+	enemies.append(_build_enemy_kind("zako", _spawn("zako", Vector3(-3, 0.1, -2))))
 	# 重装兵（E-12）：大きくて遅い。予兆が長く一撃が重い。体幹が多く、2回に1回パリィできない攻撃（赤く光る）
-	heavy = _build_enemy("重装兵", _spawn("heavy", Vector3(-6, 0.1, -6)), Vector3(1.1, 1.95, 1.1), {
-		"aggro_range": 10.0, "max_hp": 120, "max_posture": 100.0, "move_speed": 2.0, "attack_range": 2.6,
-		"telegraph_frames": 50, "glint_frames": 10, "recover_frames": 45, "damage": 25,
-		"unparryable_every": 2, "body_color": Color(0.45, 0.47, 0.52),
-		"model_path": ZAKO_MODEL, "sword_path": "res://models/weapons/Hammer_Double.fbx",
-		"sword_length": 1.1, "sword_model_length": 4.97,
-	})
+	heavy = _build_enemy_kind("heavy", _spawn("heavy", Vector3(-6, 0.1, -6)))
 	enemies.append(heavy)
 	# すばやい敵（E-13）：小さくて速い。予兆の短い3連撃。HPが少ない。短剣を両手に持つ
-	swift = _build_enemy("双剣士", _spawn("swift", Vector3(6, 0.1, -1)), Vector3(0.8, 1.45, 0.8), {
-		"aggro_range": 10.0, "max_hp": 50, "max_posture": 40.0, "move_speed": 4.5, "attack_range": 1.9,
-		"telegraph_frames": 24, "glint_frames": 10, "combo_hits": 3, "combo_gap_frames": 14,
-		"recover_frames": 25, "damage": 8, "body_color": Color(0.25, 0.65, 0.35),
-		"model_path": ZAKO_MODEL, "sword_path": "res://models/weapons/Dagger.fbx",
-		"left_sword_path": "res://models/weapons/Dagger.fbx", "sword_length": 0.5, "sword_model_length": 2.61,
-		"attack_anims": [
-			{"clip": "ual2/Sword_Regular_A", "from": 0.05, "key": 0.21, "to": 0.43},
-			{"clip": "ual2/Sword_Regular_B", "from": 0.05, "key": 0.22, "to": 0.53},
-		],
-	})
+	swift = _build_enemy_kind("swift", _spawn("swift", Vector3(6, 0.1, -1)))
 	enemies.append(swift)
 	# 魔法使い（E-14）：離れた所から魔法の弾を撃つ。攻撃の出始め（パリィ受付）で弾を跳ね返せる
-	caster = _build_enemy("魔法使い", _spawn("caster", Vector3(-1, 0.1, -9)), Vector3(0.9, 1.7, 0.9), {
-		"ranged": true, "aggro_range": 12.0, "max_hp": 40, "max_posture": 40.0, "move_speed": 2.5,
-		"keep_distance_min": 5.0, "keep_distance_max": 8.0, "projectile_speed": 8.0,
-		"telegraph_frames": 40, "glint_frames": 10, "recover_frames": 30, "attack_cooldown_frames": 70,
-		"damage": 12, "body_color": Color(0.3, 0.4, 0.95), "model_path": ZAKO_MODEL,
-		"attack_anims": [{"clip": "ual1/Spell_Simple_Shoot", "windup_clip": "ual1/Spell_Simple_Enter",
-			"from": 0.0, "key": 0.08, "to": 0.5}],
-	})
+	caster = _build_enemy_kind("caster", _spawn("caster", Vector3(-1, 0.1, -9)))
 	enemies.append(caster)
 	boss = _build_enemy("ボス", _spawn("boss", Vector3(4, 0.1, -8)), Vector3(1.6, 2.8, 1.6), {
 		"aggro_range": 8.0, "max_hp": 300, "max_posture": 120.0, "move_speed": 2.4, "attack_range": 3.2,
@@ -162,6 +179,8 @@ func _ready() -> void:
 		],
 	})
 	enemies.append(boss)
+	if use_world:
+		build_side_enemies(_side_spots)
 	if boss_door != null:
 		boss_door.guards = [heavy, swift, caster]  # 広場の苗人を全部倒すと、ホールの扉が開く
 	bgm = Bgm.new()
@@ -171,6 +190,8 @@ func _ready() -> void:
 	bgm.start()
 	_build_camera()
 	_build_hud()
+	if vista_director != null:
+		vista_director.hud_layer = _hud_layer
 	_build_slow_effect()
 	_build_result_screen()
 	_build_pause_menu()
@@ -217,6 +238,8 @@ func _notification(what: int) -> void:
 # 勝ち負けの判定（U-03）。フレームで数える
 # =========================================================
 func _physics_process(_delta: float) -> void:
+	if not side_enemies.is_empty():
+		_update_side_enemy_sleep()
 	if not _result_decided:
 		# 同じフレームに両方起きたら、ボス撃破（勝利）を優先する
 		if boss.is_dead():
@@ -317,7 +340,7 @@ func toggle_graphics() -> void:
 
 # ポーズしてよいか：勝ち負けが決まった後や、終了の途中はポーズしない
 func can_pause() -> bool:
-	return not _result_decided and not _quitting and not title_screen.is_open
+	return not _result_decided and not _quitting and not title_screen.is_open and not (vista_director != null and vista_director.active)
 
 
 func _build_result_screen() -> void:
@@ -363,6 +386,7 @@ func _setup_input_map() -> void:
 	_add_action("lock_on", [_key(KEY_TAB), _mouse(MOUSE_BUTTON_MIDDLE), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)])  # L2
 	_add_action("retry", [_key(KEY_R), _joy(JOY_BUTTON_A)])  # 結果画面でのリトライ：R ／ ×
 	_add_action("pause", [_key(KEY_ESCAPE), _joy(JOY_BUTTON_START)])  # ポーズ：Esc ／ OPTIONS
+	_add_action("use_item", [_key(KEY_Q), _joy(JOY_BUTTON_DPAD_UP)])  # 回復薬を使う：Q ／ 十字キー上（W-15）
 
 
 func _add_action(action_name: String, events: Array) -> void:
@@ -450,6 +474,10 @@ func _build_world() -> void:
 		var w := WorldBuilder.build(self)  # 白砂市のエリア（scripts/world/world_builder.gd）
 		boss_door = w["door"]
 		world_decor = w["decor"]
+		_side_spots = w["side_enemies"]
+		vista_director = VistaDirector.new()
+		vista_director.name = "VistaDirector"
+		add_child(vista_director)
 		boss_door.opened.connect(func() -> void: _on_log("根がほどけ、ホールの扉が開いた"))
 		return
 
@@ -551,6 +579,41 @@ func _build_player(pos: Vector3) -> Player:
 	return pl
 
 
+func _build_enemy_kind(kind: String, pos: Vector3, extra: Dictionary = {}) -> Enemy:
+	var k: Array = ENEMY_KINDS[kind]
+	var params: Dictionary = (k[2] as Dictionary).duplicate()
+	params.merge(extra, true)
+	return _build_enemy(k[0], pos, k[1], params)
+
+
+# 寄り道の敵（W-15 ④-3）：街に置く。一度倒した敵（Discoveries.killed）は作らない。作った数を返す
+func build_side_enemies(spots: Array) -> int:
+	var made := 0
+	for i in spots.size():
+		if Discoveries.killed.has(i):
+			continue
+		var sp: Array = spots[i]
+		var e := _build_enemy_kind(sp[1], sp[0], {"side_id": i, "aggro_range": SIDE_AGGRO_RANGE})
+		e.apply_difficulty()
+		enemies.append(e)
+		side_enemies.append(e)
+		made += 1
+	return made
+
+
+# 遠くの寄り道の敵は止めておく（軽くするため）。SIDE_CHECK_FRAMES ごとに確かめる
+func _update_side_enemy_sleep() -> void:
+	_side_check_left -= 1
+	if _side_check_left > 0:
+		return
+	_side_check_left = SIDE_CHECK_FRAMES
+	for e in side_enemies:
+		if not is_instance_valid(e):
+			continue
+		var far := e.global_position.distance_to(player.global_position) > SIDE_SLEEP_DISTANCE
+		e.process_mode = Node.PROCESS_MODE_DISABLED if far else Node.PROCESS_MODE_INHERIT
+
+
 func _build_enemy(display: String, pos: Vector3, size: Vector3, params: Dictionary) -> Enemy:
 	var e := CharacterBody3D.new()
 	e.set_script(load("res://scripts/enemy/enemy.gd"))
@@ -646,13 +709,19 @@ func _build_hud() -> void:
 	enemy_bars = EnemyBars.new()
 	enemy_bars.name = "EnemyBars"
 	layer.add_child(enemy_bars)
+	# 見つけたときのお知らせ（W-15）
+	var toast := DiscoveryToast.new()
+	toast.name = "DiscoveryToast"
+	layer.add_child(toast)
 	add_child(layer)
 
 
 func _update_hud() -> void:
 	var s := "FPS %d   難易度 %s   %s\n" % [Engine.get_frames_per_second(), Difficulty.label(), "【スロー中】" if GameFeel.is_witch_time() else ""]
-	s += "プレイヤー HP %d / %d   状態 %s\n" % [player.hp, Player.MAX_HP, player.state_name()]
+	s += "プレイヤー HP %d / %d   状態 %s\n" % [player.hp, player.max_hp, player.state_name()]
 	for e in enemies:
+		if e.side_id >= 0:
+			continue  # 寄り道の敵は多いので、調整用の表示には出さない
 		s += "%s HP %d / %d   体幹 %d / %d   状態 %s\n" % [
 			e.display_name, e.hp, e.max_hp, int(e.posture), int(e.max_posture), e.state_name()]
 	s += "\n[WASD/左スティック]移動 [マウス/右スティック]カメラ [左クリック/J/△]通常攻撃 [右クリック/K/□]強攻撃（長押しで溜め）\n"

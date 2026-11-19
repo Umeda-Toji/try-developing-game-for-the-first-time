@@ -92,7 +92,9 @@ func _start_fade(name: String, to_db: float, frames: int, stop_at_end: bool) -> 
 func _physics_process(_delta: float) -> void:
 	if boss != null and is_instance_valid(boss) and boss.call("is_phase2") and current == "battle":
 		play_track("boss")
-	var duck := PAUSE_DUCK_DB if get_tree().paused else 0.0
+	var vd := get_tree().get_first_node_in_group("vista_director") as VistaDirector
+	var in_vista := vd != null and vd.active  # 眺めを映している間は、止めていても音を下げない
+	var duck := PAUSE_DUCK_DB if get_tree().paused and not in_vista else 0.0
 	for name in _players.keys():
 		var p: AudioStreamPlayer = _players[name]
 		if _fade.has(name):
