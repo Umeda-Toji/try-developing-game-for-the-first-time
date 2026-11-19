@@ -56,6 +56,8 @@ const CHARGE_MAX_FRAMES := 60      # 溜めに入ってから最大まで溜ま�
 const CHARGE_MAX_MULTIPLIER := 2.0 # 最大まで溜めたときのダメージ・体幹ダメージの倍率
 
 # ソフトロック（P-17）：ロックオンしていなくても、攻撃の瞬間に近くの敵を向く
+const LOCK_RANGE := 25.0                  # ロックオンできる距離（m。今までと同じ）
+const LOCK_RELEASE_HOLD_FRAMES := 45      # ロックオン中にこれだけ押し続けると解除（L-01）
 const SOFT_LOCK_RANGE := 5.0             # この距離（m）以内の敵だけ
 const PARRY_SPARK_HEIGHT := 1.2          # パリィの火花を出す高さ（m）
 const SOFT_LOCK_HALF_ANGLE_DEG := 90.0   # 基準の方向から左右この角度以内の敵だけ（後ろの敵には振り向かない）
@@ -158,6 +160,8 @@ var max_stamina := STAMINA_MAX
 var attack_mult := 1.0
 var hitstop_frames := 0
 var lock_target: Node3D = null
+var _lock_hold_frames := 0     # ロックオンのボタンを押し続けているフレーム数（L-01）
+var _lock_hold_done := false   # 長押しで解除した（離すまで、ほかのことをしない）
 
 var _attack_id := ""
 var _attack_can_parry := false  # 今の攻撃の出始めでパリィできるか（コンボ1段目だけ true）
@@ -208,8 +212,7 @@ func apply_difficulty() -> void:
 # =========================================================
 func _physics_process(delta: float) -> void:
 	_buffer_inputs()
-	if Input.is_action_just_pressed("lock_on"):
-		_toggle_lock_on()
+	_update_lock_on_input()
 	if lock_target != null and (not is_instance_valid(lock_target) or lock_target.call("is_dead")):
 		lock_target = null
 
@@ -825,22 +828,58 @@ func find_soft_lock_target(ref_dir: Vector3) -> Node3D:
 	return best
 
 
-func _toggle_lock_on() -> void:
-	if lock_target != null:
-		lock_target = null
-		_log("ロックオン解除")
+# ロックオンのボタン（L-01。11/19 変更）
+#  ・ロックオンしていないとき：押した瞬間に、いちばん近い敵（LOCK_RANGE 以内）にロックオン
+#  ・ロックオン中に短く押して離す：次に近い敵に切り替える（近い順。いちばん遠い敵の次は、いちばん近い敵に戻る）
+#    ほかに敵がいなければ、何も変わらない
+#  ・ロックオン中に LOCK_RELEASE_HOLD_FRAMES 押し続ける：解除
+func _update_lock_on_input() -> void:
+	if Input.is_action_just_pressed("lock_on"):
+		_lock_hold_frames = 0
+		_lock_hold_done = false
+		if lock_target == null:
+			_lock_nearest()
+			_lock_hold_done = true  # 今押したのはロックオンのため。離しても切り替えない
 		return
-	var best: Node3D = null
-	var best_d := 25.0
+	if Input.is_action_pressed("lock_on"):
+		_lock_hold_frames += 1
+		if not _lock_hold_done and lock_target != null and _lock_hold_frames >= LOCK_RELEASE_HOLD_FRAMES:
+			lock_target = null
+			_lock_hold_done = true
+			_log("ロックオン解除")
+		return
+	if Input.is_action_just_released("lock_on") and not _lock_hold_done and lock_target != null:
+		_lock_next()
+
+
+# ロックオンできる敵を、近い順に並べる
+func lock_candidates() -> Array[Node3D]:
+	var list: Array[Node3D] = []
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if e is Node3D and not e.call("is_dead"):
-			var d := global_position.distance_to((e as Node3D).global_position)
-			if d < best_d:
-				best_d = d
-				best = e
-	lock_target = best
-	if best != null:
-		_log("ロックオン: " + str(best.get("display_name")))
+		if e is Node3D and not e.call("is_dead") and global_position.distance_to((e as Node3D).global_position) < LOCK_RANGE:
+			list.append(e)
+	list.sort_custom(func(a: Node3D, b: Node3D) -> bool:
+		return global_position.distance_to(a.global_position) < global_position.distance_to(b.global_position))
+	return list
+
+
+func _lock_nearest() -> void:
+	var list := lock_candidates()
+	lock_target = list[0] if not list.is_empty() else null
+	if lock_target != null:
+		_log("ロックオン: " + str(lock_target.get("display_name")))
+
+
+# 次に近い敵へ（今の敵より遠い中でいちばん近い敵。いなければ、いちばん近い敵）
+func _lock_next() -> void:
+	var list := lock_candidates()
+	var i := list.find(lock_target)
+	if list.size() <= 1 and i != -1:
+		return  # ほかに敵がいない：何も変わらない
+	var next: Node3D = list[(i + 1) % list.size()] if not list.is_empty() else null
+	if next != null and next != lock_target:
+		lock_target = next
+		_log("ロックオン切り替え: " + str(next.get("display_name")))
 
 
 func _is_parry_window() -> bool:

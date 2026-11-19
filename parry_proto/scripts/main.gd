@@ -84,7 +84,8 @@ const TEST_SCRIPTS := {
 	"--vista-test": "res://tests/vista_test.gd",  # 眺めのいい場所（W-15 ④-4）
 	"--save-test": "res://tests/save_test.gd",  # セーブ（S-01）
 	"--map-test": "res://tests/map_test.gd",  # 地図（C）
-	"--settings-test": "res://tests/settings_test.gd",  # 設定（O-01）  # 景色の確認用（テストではない。エリアを順に映す）
+	"--settings-test": "res://tests/settings_test.gd",  # 設定（O-01）
+	"--lockon-test": "res://tests/lockon_test.gd",  # ロックオンの切り替え（L-01）  # 景色の確認用（テストではない。エリアを順に映す）
 }
 const TITLE_TEST_FLAG := "--title-test"  # テストのうち、これだけはタイトル画面を出す
 const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
