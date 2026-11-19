@@ -83,7 +83,7 @@
 
 ## 4. 自動テスト（28種類。今は全部合格：328項目、失敗0・エラー0）
 `parry_proto` フォルダで：
-`C:\Users\umeji\Documents\Godot_v4.7.2-stable_win64_console.exe --path . --headless --fixed-fps 60 -- --autotest`
+`C:\Users\umeji\Desktop\Godot_v4.7.2-stable_win64.exe --path . --headless --fixed-fps 60 -- --autotest`
 の `--autotest` を、CLAUDE.md の一覧のものに変えて全部実行する。
 
 - 街で動くテスト：`--world-test` `--items-test` `--side-enemies-test` `--vista-test` `--save-test` `--map-test` `--sound-test`（ほかは20m四方の部屋）
@@ -99,4 +99,4 @@
 - 梅田さんの保存している画質は「軽い」。高画質で測るときは `--high` を付ける
 - N-08（.exe を2台目のPCで動かす）は、梅田さんが確かめる
 - 素材の元のファイル（zip など）は `assets_src/`（git には入れていない）
-- 11/19：Godot の本体（`Godot_v4.7.2-stable_win64.exe`）がデスクトップに移っていた。Documents には小さい `_console.exe` だけが残っていて、それだけでは動かない。今はデスクトップの本体でテストしている（CLAUDE.md の道はまだ Documents のまま）
+- 11/19：Godot の本体は デスクトップの `Godot_v4.7.2-stable_win64.exe`。テストと .exe の書き出しはこれを使う（CLAUDE.md の道も書き直した）。Documents に残っている小さい `_console.exe` だけでは動かない
