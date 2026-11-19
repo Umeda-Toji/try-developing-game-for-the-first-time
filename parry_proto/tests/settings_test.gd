@@ -38,7 +38,9 @@ func _physics_process(_delta: float) -> void:
 		gs.volumes.values().all(func(v): return is_equal_approx(v, 1.0))
 		and is_equal_approx(gs.sens["mouse"], 1.0) and is_equal_approx(gs.sens["pad"], 1.0)
 		and is_equal_approx(gs.sens["mouse_aim"], 0.6) and is_equal_approx(gs.sens["pad_aim"], 0.6)
-		and not gs.invert_x and not gs.invert_y and gs.aim_assist and gs.tracers)
+		and not gs.invert_x and not gs.invert_y and gs.aim_assist and gs.tracers and not gs.debug_hud)
+	# 調整用の文字（U-10）：最初は隠れている。設定のチェックで出る
+	_results["調整用の文字は、最初は隠れている"] = not (_main._hud as Label).visible
 
 	# ポーズメニューから開く
 	var pm: PauseMenu = _main.pause_menu
@@ -94,6 +96,13 @@ func _physics_process(_delta: float) -> void:
 		is_equal_approx(gs.volumes["master"], 0.5) and is_equal_approx(gs.volumes["bgm"], 0.0) and is_equal_approx(gs.sens["mouse"], 2.0)
 		and gs.invert_x and gs.invert_y and not gs.aim_assist and cfg2.get_value("graphics", "quality", "") == "low")
 
+	# 調整用の文字：設定のチェックで出す（次のフレームで見える）
+	(panel.checks["debug_hud"] as CheckButton).button_pressed = true
+	_main._process(0.0)
+	_results["設定で「調整用の文字」をオンにすると出る"] = gs.debug_hud and (_main._hud as Label).visible
+	(panel.checks["debug_hud"] as CheckButton).button_pressed = false
+	_main._process(0.0)
+	_results["オフにすると隠れる"] = not (_main._hud as Label).visible
 	# Esc で戻る
 	pm.close_settings()
 	_results["戻ると、ポーズメニューに戻る（「設定」が選ばれている）"] = not pm.settings_open and pm._menu_box.visible and pm.settings_button.has_focus()

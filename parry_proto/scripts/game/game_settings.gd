@@ -41,6 +41,7 @@ var invert_x := false
 var invert_y := false
 var aim_assist := true
 var tracers := true          # 弾道の表示（撃った弾の光の線と火花。G-07）
+var debug_hud := false       # 調整用の文字（FPS・敵の状態・ログ）を出すか（U-10。最初は隠す）
 var save_enabled := true
 var save_path := SAVE_PATH
 
@@ -68,6 +69,7 @@ func reset_to_defaults() -> void:
 	invert_y = false
 	aim_assist = true
 	tracers = true
+	debug_hud = false
 
 
 # 音のバス（BGM・SFX・Ambient）を作る。どれも Master に流れる
@@ -114,6 +116,8 @@ func set_flag(key: String, on: bool) -> void:
 			aim_assist = on
 		"tracers":
 			tracers = on
+		"debug_hud":
+			debug_hud = on
 	save_settings()
 	changed.emit()
 
@@ -138,6 +142,7 @@ func save_settings() -> bool:
 	cfg.set_value(SECTION, "invert_y", invert_y)
 	cfg.set_value(SECTION, "aim_assist", aim_assist)
 	cfg.set_value(SECTION, "tracers", tracers)
+	cfg.set_value(SECTION, "debug_hud", debug_hud)
 	return cfg.save(save_path) == OK
 
 
@@ -155,4 +160,5 @@ func load_settings() -> bool:
 	invert_y = bool(cfg.get_value(SECTION, "invert_y", false))
 	aim_assist = bool(cfg.get_value(SECTION, "aim_assist", true))
 	tracers = bool(cfg.get_value(SECTION, "tracers", true))
+	debug_hud = bool(cfg.get_value(SECTION, "debug_hud", false))
 	return true

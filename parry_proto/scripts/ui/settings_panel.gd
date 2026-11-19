@@ -66,7 +66,7 @@ func _init() -> void:
 	flags.add_theme_constant_override("separation", 24)
 	flags.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_child(flags)
-	for f in [["invert_y", "上下の反転"], ["invert_x", "左右の反転"], ["aim_assist", "狙いの補助（パッド）"], ["tracers", "弾道の表示"]]:
+	for f in [["invert_y", "上下の反転"], ["invert_x", "左右の反転"], ["aim_assist", "狙いの補助（パッド）"], ["tracers", "弾道の表示"], ["debug_hud", "調整用の文字（F3）"]]:
 		var c := CheckButton.new()
 		c.text = f[1]
 		c.add_theme_font_size_override("font_size", FONT_SIZE)
@@ -101,6 +101,7 @@ func open() -> void:
 	(checks["invert_y"] as CheckButton).set_pressed_no_signal(GameSettings.invert_y)
 	(checks["aim_assist"] as CheckButton).set_pressed_no_signal(GameSettings.aim_assist)
 	(checks["tracers"] as CheckButton).set_pressed_no_signal(GameSettings.tracers)
+	(checks["debug_hud"] as CheckButton).set_pressed_no_signal(GameSettings.debug_hud)
 	_update_graphics_label()
 	visible = true
 	(sliders["volume_master"] as HSlider).grab_focus()

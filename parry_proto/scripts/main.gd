@@ -233,7 +233,12 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	_update_hud()
+	# 調整用の文字（U-01）：ふだんは隠す。F3 ／ パッドの SHARE で出し入れ（U-10。設定にも保存）
+	if Input.is_action_just_pressed("debug_hud"):
+		GameSettings.set_flag("debug_hud", not GameSettings.debug_hud)
+	_hud.visible = GameSettings.debug_hud
+	if _hud.visible:
+		_update_hud()
 
 
 # ゲームを終える。鳴っている音を止めて、オーディオが片付くのを少し待ってから終了する
@@ -455,6 +460,7 @@ func _setup_input_map() -> void:
 	_add_action("lock_on", [_key(KEY_TAB), _mouse(MOUSE_BUTTON_MIDDLE), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)])  # L2
 	_add_action("retry", [_key(KEY_R), _joy(JOY_BUTTON_A)])  # 結果画面でのリトライ：R ／ ×
 	_add_action("pause", [_key(KEY_ESCAPE), _joy(JOY_BUTTON_START)])  # ポーズ：Esc ／ OPTIONS
+	_add_action("debug_hud", [_key(KEY_F3), _joy(JOY_BUTTON_BACK)])  # 調整用の文字を出し入れ：F3 ／ SHARE（U-10）
 	_add_action("use_item", [_key(KEY_Q), _joy(JOY_BUTTON_DPAD_UP)])  # 回復薬を使う：Q ／ 十字キー上（W-15）
 	# 武器（G-01・G-02）：F＝剣、1＝AR、2＝SMG、3＝SG。パッドは武器の輪（R3。銃のときは△長押しでも）
 	_add_action("weapon_sword", [_key(KEY_F)])
