@@ -94,10 +94,11 @@ const TEST_SCRIPTS := {
 	"--sound-test": "res://tests/sound_test.gd",  # 探索の曲・環境音・花の音（A-01〜A-03）
 	"--weapon-test": "res://tests/weapon_test.gd",  # 武器の持ち替え・武器の輪（G-01・G-02）
 	"--gun-test": "res://tests/gun_test.gd",  # 撃つ・構え・反動・リロード（G-03）
-	"--terrain-test": "res://tests/terrain_test.gd",  # 起伏のある地面（T-01・T-02。6a の試し）  # 景色の確認用（テストではない。エリアを順に映す）
+	"--terrain-test": "res://tests/terrain_test.gd",  # 起伏のある地面（T-01・T-02。6a の試し）
+	"--hints-test": "res://tests/hints_test.gd",  # 操作のヒント・操作の一覧（U-11）  # 景色の確認用（テストではない。エリアを順に映す）
 }
 const TITLE_TEST_FLAG := "--title-test"  # テストのうち、これだけはタイトル画面を出す
-const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test", "--sound-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
+const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test", "--sound-test", "--hints-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
 const SKIP_TITLE_KEY := "skip_title"     # リトライのとき true にしておく（読み直した後はタイトルを出さない）
 # タイトル画面の後ろに映す景色（部屋全体を斜め上から。手前にプレイヤー、奥にザコとボス）
 const TITLE_CAMERA_POS := Vector3(-5.0, 3.2, 9.5)
@@ -126,6 +127,7 @@ var sfx: Sfx  # 効果音（F-05）
 var bgm: Bgm  # BGM（F-07）
 var ambience: Ambience  # 環境音（A-02。エリアのときだけ）
 var weapon_wheel: WeaponWheel  # 武器の輪（G-02）
+var hint_box: HintBox  # 操作のヒント（U-11。エリアのときだけ）
 var title_screen: TitleScreen  # タイトル画面（U-06）
 var _hud_layer: CanvasLayer
 var use_world := true      # true：白砂市のエリア（W-01〜）／false：20m四方の部屋（自動テスト用）
@@ -802,6 +804,16 @@ func _build_hud() -> void:
 		if player.weapons.request(id):
 			_on_log("持ち替え：" + str(Weapons.LABELS[id])))
 	layer.add_child(weapon_wheel)
+	# 操作のヒント（U-11）：エリアのときだけ
+	if use_world:
+		hint_box = HintBox.new()
+		hint_box.name = "HintBox"
+		layer.add_child(hint_box)
+		var hd := HintDirector.new()
+		hd.name = "HintDirector"
+		hd.main = self
+		hd.box = hint_box
+		add_child(hd)
 	# 見つけたときのお知らせ（W-15）
 	var toast := DiscoveryToast.new()
 	toast.name = "DiscoveryToast"

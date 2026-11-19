@@ -31,6 +31,7 @@ var killed := {}           # 倒した寄り道の敵の番号 → true（リト
 var ammo := {}
 var ammo_crates := 0       # 拾った弾の箱の数（G-04）
 var ammo_total := 0        # 街にある弾の箱の数（CityBuilder が入れる）
+var hints_seen := {}       # 出した操作のヒント（U-11）：id → true
 # ④-4 眺めのいい場所
 var vistas := {}           # 見た眺めの番号 → true
 var vista_total := 0       # 街にある眺めのいい場所の数（CityBuilder が入れる）
@@ -142,6 +143,7 @@ func reset() -> void:
 	vistas.clear()
 	ammo.clear()
 	ammo_crates = 0
+	hints_seen.clear()
 	has_position = false
 
 
@@ -174,6 +176,7 @@ func save_game() -> bool:
 	cfg.set_value("player", "difficulty", Difficulty.current)
 	cfg.set_value("player", "ammo", ammo)
 	cfg.set_value("player", "ammo_crates", ammo_crates)
+	cfg.set_value("found", "hints", hints_seen.keys())
 	if has_position:
 		cfg.set_value("player", "position", saved_position)
 	return cfg.save(save_path) == OK
@@ -207,6 +210,8 @@ func load_game() -> bool:
 	if saved_ammo is Dictionary:
 		ammo = (saved_ammo as Dictionary).duplicate(true)
 	ammo_crates = int(cfg.get_value("player", "ammo_crates", 0))
+	for id in cfg.get_value("found", "hints", []):
+		hints_seen[String(id)] = true
 	var diff: String = cfg.get_value("player", "difficulty", Difficulty.current)
 	if Difficulty.SETTINGS.has(diff):
 		Difficulty.current = diff

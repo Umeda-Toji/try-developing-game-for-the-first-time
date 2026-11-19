@@ -17,6 +17,8 @@ const BUTTON_SIZE := Vector2(240, 52)
 const COLOR_BG := Color(0.1, 0.1, 0.13, 0.98)  # 後ろの画面が透けないように、ほぼ不透明
 
 var text_label: RichTextLabel
+var title_label: Label
+var custom_text := ""        # 空でなければ、クレジットの代わりにこの文章を出す（BBCode。操作の一覧 U-11）
 var back_button: Button
 
 
@@ -37,6 +39,7 @@ func _init() -> void:
 	panel.add_child(box)
 
 	var title := Label.new()
+	title_label = title
 	title.text = "クレジット"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", TITLE_FONT_SIZE)
@@ -62,7 +65,11 @@ func _init() -> void:
 # 開く（長い文章なので、初めて開いたときに作る）
 func open() -> void:
 	if text_label.text == "":
-		text_label.text = Credits.build_text()
+		if custom_text != "":
+			text_label.bbcode_enabled = true
+			text_label.text = custom_text
+		else:
+			text_label.text = Credits.build_text()
 	visible = true
 	text_label.scroll_to_line(0)
 	text_label.grab_focus()  # パッドの上下でスクロールできるように

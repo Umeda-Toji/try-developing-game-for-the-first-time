@@ -20,11 +20,14 @@ signal save_requested     # セーブ（S-01）
 # ---- 見た目の数値 ----
 const LAYER_ORDER := 20                    # 結果画面（10）より手前
 const TITLE_FONT_SIZE := 48
-const BUTTON_SIZE := Vector2(240, 52)
+const BUTTON_SIZE := Vector2(240, 46)
 const COLOR_DIM := Color(0, 0, 0, 0.6)
 
 var is_open := false
 var credits_open := false
+var controls_open := false   # 操作の一覧（U-11）
+var controls_button: Button
+var _controls_panel: CreditsPanel
 var can_open: Callable  # main.gd が渡す（今開いてよいか）
 
 var resume_button: Button
@@ -59,6 +62,10 @@ func _process(_delta: float) -> void:
 	if credits_open:
 		if Input.is_action_just_pressed("pause") or Input.is_action_just_pressed("ui_cancel"):
 			close_credits()
+		return
+	if controls_open:
+		if Input.is_action_just_pressed("pause") or Input.is_action_just_pressed("ui_cancel"):
+			close_controls()
 		return
 	if map_open:
 		if Input.is_action_just_pressed("pause") or Input.is_action_just_pressed("ui_cancel"):
@@ -101,6 +108,19 @@ func close_credits() -> void:
 	credits_button.grab_focus()
 
 
+func open_controls() -> void:
+	controls_open = true
+	_menu_box.visible = false
+	_controls_panel.open()
+
+
+func close_controls() -> void:
+	controls_open = false
+	_controls_panel.close()
+	_menu_box.visible = true
+	controls_button.grab_focus()
+
+
 func open_settings() -> void:
 	settings_open = true
 	_menu_box.visible = false
@@ -128,6 +148,8 @@ func close_map() -> void:
 
 
 func close() -> void:
+	if controls_open:
+		close_controls()
 	if settings_open:
 		close_settings()
 	if map_open:
@@ -208,7 +230,12 @@ func _build() -> void:
 	buttons.add_theme_constant_override("separation", 12)
 	row.add_child(buttons)
 	row.add_child(found_label)
-	for b in [resume_button, retry_button, map_button, save_button, settings_button, credits_button, quit_button]:
+	controls_button = Button.new()
+	controls_button.text = "操作の一覧"
+	controls_button.custom_minimum_size = BUTTON_SIZE
+	controls_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	controls_button.pressed.connect(open_controls)
+	for b in [resume_button, retry_button, map_button, save_button, controls_button, settings_button, credits_button, quit_button]:
 		buttons.add_child(b)
 	city_map.name = "CityMap"
 	city_map.back_pressed.connect(close_map)
@@ -223,6 +250,12 @@ func show_saved(ok: bool) -> void:
 
 # クレジットの画面（タイトル画面と同じもの。scripts/ui/credits_panel.gd）
 func _build_credits() -> void:
+	_controls_panel = CreditsPanel.new()
+	_controls_panel.name = "ControlsPanel"
+	_controls_panel.title_label.text = "操作の一覧"
+	_controls_panel.custom_text = HintDirector.controls_text()
+	_controls_panel.back_pressed.connect(close_controls)
+	add_child(_controls_panel)
 	_credits_panel = CreditsPanel.new()
 	_credits_panel.back_pressed.connect(close_credits)
 	add_child(_credits_panel)

@@ -42,7 +42,7 @@ func _ready() -> void:
 	_cam.fov = 70.0
 	_main.add_child(_cam)
 	_cam.make_current()
-	_main._hud_layer.visible = false
+	_main._hud_layer.visible = "--keep-hud" in OS.get_cmdline_user_args()  # --keep-hud：ヒントなどの表示も映す（見た目を確かめるとき）
 	# -- --world-views --from=8：8番目の景色から映す（録画を短くしたいとき）
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--from="):

@@ -62,18 +62,22 @@ func _init() -> void:
 		_add_slider(grid, "sens_" + k, GameSettings.SENS_LABELS[k], GameSettings.SENS_MIN, GameSettings.SENS_MAX, GameSettings.SENS_STEP,
 			func(v: float) -> void: GameSettings.set_sens(k, v))
 
-	var flags := HBoxContainer.new()
-	flags.add_theme_constant_override("separation", 24)
-	flags.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_child(flags)
-	for f in [["invert_y", "上下の反転"], ["invert_x", "左右の反転"], ["aim_assist", "狙いの補助（パッド）"], ["tracers", "弾道の表示"], ["debug_hud", "調整用の文字（F3）"]]:
-		var c := CheckButton.new()
-		c.text = f[1]
-		c.add_theme_font_size_override("font_size", FONT_SIZE)
-		var key: String = f[0]
-		c.toggled.connect(func(on: bool) -> void: GameSettings.set_flag(key, on))
-		flags.add_child(c)
-		checks[key] = c
+	# オン／オフ：3つずつ2行に並べる（1行だと画面からはみ出すため）
+	var rows := [[["invert_y", "上下の反転"], ["invert_x", "左右の反転"], ["aim_assist", "狙いの補助（パッド）"]],
+		[["tracers", "弾道の表示"], ["hints", "操作のヒント"], ["debug_hud", "調整用の文字（F3）"]]]
+	for row in rows:
+		var flags := HBoxContainer.new()
+		flags.add_theme_constant_override("separation", 24)
+		flags.alignment = BoxContainer.ALIGNMENT_CENTER
+		box.add_child(flags)
+		for f in row:
+			var c := CheckButton.new()
+			c.text = f[1]
+			c.add_theme_font_size_override("font_size", FONT_SIZE)
+			var key: String = f[0]
+			c.toggled.connect(func(on: bool) -> void: GameSettings.set_flag(key, on))
+			flags.add_child(c)
+			checks[key] = c
 
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 24)
@@ -102,6 +106,7 @@ func open() -> void:
 	(checks["aim_assist"] as CheckButton).set_pressed_no_signal(GameSettings.aim_assist)
 	(checks["tracers"] as CheckButton).set_pressed_no_signal(GameSettings.tracers)
 	(checks["debug_hud"] as CheckButton).set_pressed_no_signal(GameSettings.debug_hud)
+	(checks["hints"] as CheckButton).set_pressed_no_signal(GameSettings.hints)
 	_update_graphics_label()
 	visible = true
 	(sliders["volume_master"] as HSlider).grab_focus()
