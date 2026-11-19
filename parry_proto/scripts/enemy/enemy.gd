@@ -571,6 +571,9 @@ func _update_flower() -> void:
 		State.DEAD:
 			target = EnemyFlower.DEATH_OPEN
 			col = EnemyFlower.COLOR_DEAD
+	# つぼみから開き始めた瞬間に音を鳴らす（ニセの光でも鳴る。倒れたときは鳴らさない）
+	if flower.open_amount <= 0.0 and target > 0.0 and state != State.DEAD:
+		GameFeel.flower_open(col == EnemyFlower.COLOR_RED)
 	flower.step_toward(target, col)
 	# 第2形態：切り替わりの間に、肩と背中の花が咲く（「全身が咲く」）
 	if _phase2 and flower.extra_count() > 0:

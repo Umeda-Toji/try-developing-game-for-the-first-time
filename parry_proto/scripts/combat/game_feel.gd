@@ -11,6 +11,7 @@ extends Node
 signal shake_requested(strength: float, frames: int)
 signal witch_time_changed(active: bool)
 signal spark_requested(pos: Vector3, kind: String)
+signal flower_opened(red: bool)   # 敵の頭の花が開き始めた（A-03。Sfx が音を鳴らす）
 
 # 火花の種類（F-06）。見た目は scripts/combat/hit_sparks.gd の表で決める
 const SPARK_HIT := "hit"       # 攻撃が当たった
@@ -26,6 +27,10 @@ func shake(strength: float, frames: int) -> void:
 
 
 # 火花を出す（実際に出すのは main.gd が作る HitSparks）
+func flower_open(red: bool) -> void:
+	flower_opened.emit(red)
+
+
 func spark(pos: Vector3, kind: String) -> void:
 	spark_requested.emit(pos, kind)
 

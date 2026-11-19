@@ -33,7 +33,8 @@ func _physics_process(_delta: float) -> void:
 		_results["HP160では第1形態のまま"] = not _boss.is_phase2()
 		# BGM（F-07）：最初は通常の曲。どちらの曲もループする設定になっているか
 		var bgm: Bgm = _main.bgm
-		_results["BGM：最初は通常の曲"] = bgm.current == "battle" and bgm.is_playing("battle")
+		# 最初は探索の曲（A-01）。ボスが近くにいて気づかれていれば、もう戦闘の曲になっている
+		_results["BGM：最初は探索の曲か戦闘の曲（%s）" % bgm.current] = (bgm.current == "explore" or bgm.current == "battle") and bgm.is_playing(bgm.current)
 		var battle_stream := bgm.get_node("Bgm_battle").stream as AudioStreamOggVorbis
 		var boss_stream := bgm.get_node("Bgm_boss").stream as AudioStreamWAV
 		_results["BGM：2曲ともループする"] = battle_stream.loop and boss_stream.loop_mode == AudioStreamWAV.LOOP_FORWARD

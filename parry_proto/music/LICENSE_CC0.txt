@@ -3,4 +3,6 @@ BGM (all CC0 1.0, from OpenGameArt.org)
   https://opengameart.org/content/cynic-battle-loop
 - epic_boss_battle_loop.wav: "Epic Boss Battle" by Juhani Junkala (SubspaceAudio)
   https://opengameart.org/content/boss-battle-music
+- contemplation.mp3: "Contemplation" by Joth
+  https://opengameart.org/content/contemplation-0
 https://creativecommons.org/publicdomain/zero/1.0/

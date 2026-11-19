@@ -2,7 +2,9 @@
 # res://scripts/audio/bgm.gd
 #
 # BGM（F-07）
-#  ・ゲームが始まったら「通常の曲」を流す。ボスが第2形態になったら「ボスの曲」へ切り替える（クロスフェード）
+#  ・ゲームが始まったら「探索の曲」を流す（A-01。11/19）。敵に気づかれる（追いかけてくる敵がいる）と、
+#    BATTLE_IN_FRAMES かけて「通常の曲（戦闘）」へ。追いかけてくる敵がいなくなって CALM_FRAMES たつと、探索の曲へ戻す
+#  ・ボスが第2形態になったら「ボスの曲」へ切り替える（クロスフェード）。その後はボスの曲のまま
 #  ・勝ち負けが決まったら、ゆっくり小さくして止める
 #  ・ポーズ中は少し小さくする（ポーズ中も止めずに流す）
 #  ・音量の変化はフレーム数で数える（N-03 にそろえる。判定には関係しない）
@@ -12,6 +14,7 @@ class_name Bgm
 extends Node
 
 const TRACKS := {
+	"explore": "res://music/contemplation.mp3",        # Contemplation（Joth）。探索中の静かな曲
 	"battle": "res://music/battle_theme_a_loop.ogg",   # Battle Theme A（cynicmusic、ループ版 Ferk）
 	"boss": "res://music/epic_boss_battle_loop.wav",   # Epic Boss Battle（Juhani Junkala）
 }
@@ -20,9 +23,13 @@ const PAUSE_DUCK_DB := -8.0        # ポーズ中はこれだけ小さくする
 const SILENT_DB := -60.0           # ほぼ聞こえない音量（フェードの端）
 const CROSSFADE_FRAMES := 90       # 曲の切り替えにかけるフレーム（1.5秒）
 const FADE_OUT_FRAMES := 120       # 勝ち負けが決まってから消えるまで（2秒）
+const BATTLE_IN_FRAMES := 60       # 敵に気づかれてから、戦闘の曲になるまで
+const CALM_FRAMES := 180           # 追いかけてくる敵がいなくなってから、探索の曲に戻すまで
 
-var current := ""                  # 今流している曲（"battle" ／ "boss" ／ ""）
+var current := ""                  # 今流している曲（"explore" ／ "battle" ／ "boss" ／ ""）
 var boss: Node = null              # main.gd が渡す。第2形態になったかを見る
+var enemies: Array = []            # main.gd が渡す。追いかけてくる敵がいるかを見る
+var _calm_frames := 0              # 追いかけてくる敵がいなくなってからのフレーム
 
 var _players := {}                 # 曲の名前 → AudioStreamPlayer
 var _fade := {}                    # 曲の名前 → {"from": dB, "to": dB, "frame": 今, "total": 全体, "stop": 終わったら止めるか}
@@ -45,7 +52,15 @@ func _ready() -> void:
 
 
 func start() -> void:
-	play_track("battle", 1)
+	play_track("explore", 1)
+
+
+# 追いかけてくる（戦っている）敵がいるか：生きていて、立ち止まっていない敵
+func enemy_engaged() -> bool:
+	for e in enemies:
+		if e != null and is_instance_valid(e) and not e.call("is_dead") and int(e.get("state")) != Enemy.State.IDLE:
+			return true
+	return false
 
 
 # name の曲に切り替える（今の曲は frames かけて小さくして止め、新しい曲は frames かけて大きくする）
@@ -91,8 +106,17 @@ func _start_fade(name: String, to_db: float, frames: int, stop_at_end: bool) -> 
 
 
 func _physics_process(_delta: float) -> void:
-	if boss != null and is_instance_valid(boss) and boss.call("is_phase2") and current == "battle":
+	if boss != null and is_instance_valid(boss) and boss.call("is_phase2") and current != "boss" and current != "":
 		play_track("boss")
+	elif not _muted and not get_tree().paused and (current == "explore" or current == "battle"):
+		if enemy_engaged():
+			_calm_frames = 0
+			if current == "explore":
+				play_track("battle", BATTLE_IN_FRAMES)
+		else:
+			_calm_frames += 1
+			if current == "battle" and _calm_frames >= CALM_FRAMES:
+				play_track("explore")
 	var vd := get_tree().get_first_node_in_group("vista_director") as VistaDirector
 	var in_vista := vd != null and vd.active  # 眺めを映している間は、止めていても音を下げない
 	var duck := PAUSE_DUCK_DB if get_tree().paused and not in_vista else 0.0

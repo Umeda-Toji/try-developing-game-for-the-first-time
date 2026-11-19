@@ -90,10 +90,11 @@ const TEST_SCRIPTS := {
 	"--map-test": "res://tests/map_test.gd",  # 地図（C）
 	"--settings-test": "res://tests/settings_test.gd",  # 設定（O-01）
 	"--lockon-test": "res://tests/lockon_test.gd",  # ロックオンの切り替え（L-01）
-	"--flower-test": "res://tests/flower_test.gd",  # 敵の頭の花（F-01）  # 景色の確認用（テストではない。エリアを順に映す）
+	"--flower-test": "res://tests/flower_test.gd",  # 敵の頭の花（F-01）
+	"--sound-test": "res://tests/sound_test.gd",  # 探索の曲・環境音・花の音（A-01〜A-03）  # 景色の確認用（テストではない。エリアを順に映す）
 }
 const TITLE_TEST_FLAG := "--title-test"  # テストのうち、これだけはタイトル画面を出す
-const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
+const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test", "--sound-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
 const SKIP_TITLE_KEY := "skip_title"     # リトライのとき true にしておく（読み直した後はタイトルを出さない）
 # タイトル画面の後ろに映す景色（部屋全体を斜め上から。手前にプレイヤー、奥にザコとボス）
 const TITLE_CAMERA_POS := Vector3(-5.0, 3.2, 9.5)
@@ -120,6 +121,7 @@ var slow_effect: SlowEffect  # スロー中の画面演出（F-04）
 var hit_sparks: HitSparks  # ヒット・パリィ・ブレイクの火花（F-06）
 var sfx: Sfx  # 効果音（F-05）
 var bgm: Bgm  # BGM（F-07）
+var ambience: Ambience  # 環境音（A-02。エリアのときだけ）
 var title_screen: TitleScreen  # タイトル画面（U-06）
 var _hud_layer: CanvasLayer
 var use_world := true      # true：白砂市のエリア（W-01〜）／false：20m四方の部屋（自動テスト用）
@@ -197,8 +199,16 @@ func _ready() -> void:
 	bgm = Bgm.new()
 	bgm.name = "Bgm"
 	bgm.boss = boss  # 第2形態になったらボスの曲へ
+	bgm.enemies = enemies  # 敵に気づかれたら戦闘の曲へ（A-01）
 	add_child(bgm)
 	bgm.start()
+	# 環境音（A-02）：白砂市のエリアのときだけ
+	if use_world:
+		ambience = Ambience.new()
+		ambience.name = "Ambience"
+		ambience.player = player
+		add_child(ambience)
+		ambience.start()
 	_build_camera()
 	_build_hud()
 	if vista_director != null:
@@ -230,6 +240,8 @@ func quit_game() -> void:
 	get_tree().paused = true  # 待っている間にゲームが進んで、新しい音が鳴らないように止める
 	sfx.stop_all()
 	bgm.stop_all()
+	if ambience != null:
+		ambience.stop_all()
 	var test := get_node_or_null("Test")  # 自動テストも止める（結果を2回出さないように）
 	if test != null:
 		test.set_physics_process(false)
@@ -391,6 +403,8 @@ func _retry() -> void:
 	Engine.set_meta(SKIP_TITLE_KEY, true)  # 読み直した後はタイトルを出さず、すぐ戦う
 	sfx.stop_all()
 	bgm.stop_all()
+	if ambience != null:
+		ambience.stop_all()
 	get_tree().paused = false
 	GameFeel.reset()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

@@ -15,6 +15,11 @@ const CREDITS_HEAD := """ParryProto（試作）
 ■ BGM（OpenGameArt.org、CC0 1.0）
 ・Battle Theme A — Alex Smith（cynicmusic.com / pixelsphere.org）、ループ版 Ferk
 ・Epic Boss Battle — Juhani Junkala（SubspaceAudio）
+・Contemplation — Joth（探索中の曲）
+
+■ 環境音（OpenGameArt.org、CC0 1.0）
+・Birds and Wind - Ambient — Spring Spring（鳥の声：isaiah658 ／ syncopika ／ pauliuw、パブリックドメイン）
+・Sea and river wave sounds — RandomMind
 
 ■ テクスチャ・空・植物などの3Dモデル（Poly Haven、https://polyhaven.com、CC0 1.0）
 ・concrete_wall_006 ／ beige_wall_002 ／ dirty_concrete ／ mossy_cobblestone ／

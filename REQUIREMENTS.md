@@ -95,6 +95,9 @@ NieR:Automata や NTE（Neverness to Everness）のような、三人称視点�
 | ID | 要件 | 状態 |
 |---|---|---|
 | F-01 | ヒットストップ：当てた側と当たった側の両方を数フレーム止める | ✅ |
+| A-01 | 探索中の静かな曲（NEXT_FEATURES 1.4・ステップ4。11/19 決定）：始まったら Contemplation（Joth、CC0）。敵に気づかれる（生きていて立ち止まっていない敵がいる）と60フレームで戦闘の曲（Battle Theme A）へ。追いかけてくる敵がいなくなって180フレームたつと探索の曲に戻る。ボスの第2形態でボスの曲（そのまま）。`scripts/audio/bgm.gd` | ✅ 11/19 |
+| A-02 | 環境音：風と鳥の音（Spring Spring「Birds and Wind - Ambient」CC0）をずっと流す。川・水路に近いほど水の音（RandomMind「Sea and river wave sounds」CC0）が大きく、30mより遠いと聞こえない。音のバス Ambient を通る（設定の「環境音」の音量で変わる）。白砂市のエリアのときだけ。`scripts/audio/ambience.gd` | ✅ 11/19 |
+| A-03 | 花が開く音：つぼみから開き始めた瞬間に鳴る。白＝軽いガラスの音（Kenney impactGlass_light）、赤＝重い鐘の音を低くしたもの（impactBell_heavy、高さ0.75倍。パリィの鐘と区別する）。どちらにも花びらの布の音（cloth）を重ねる。フェイントのニセの光でも鳴る。倒れたときは鳴らない。`GameFeel.flower_opened` → `scripts/combat/sfx.gd`（テスト `--sound-test`） | ✅ 11/19 |
 | F-02 | カメラの揺れ：時間とともに弱まる。強い揺れを優先する | ✅ |
 | F-03 | 敵だけのスロー（`Engine.time_scale` は使わない） | ✅ |
 | F-04 | スロー中は画面の色を変えるなど、目で見てわかる演出：彩度を下げて（Environment の色調補正）、薄い青をかぶせる。8フレームかけて出し入れする。重いポストエフェクトは使わない。`scripts/ui/slow_effect.gd` | ✅ |
@@ -210,6 +213,13 @@ WORLD_PROMPT.md の進み具合（11/18）：A 設定文 ✅ ／ B 配置 ✅ �
 | `FEINT_OPEN` / `DEATH_OPEN` | 0.5 / 1.3 | ニセの光のときの開き／倒れたときの開き（満開） |
 | `BUD_RATIO` | 0.6 | つぼみの大きさ（開いた花に対して） |
 | `EXTRA_SIZE` | 0.5 m | ボスの第2形態で肩・背中に咲く花の大きさ |
+
+| 定数（音 A-01〜A-03。11/19 追加） | 値 | 意味 |
+|---|---|---|
+| `BATTLE_IN_FRAMES` / `CALM_FRAMES`（bgm.gd） | 60 / 180 | 敵に気づかれてから戦闘の曲になるまで／追いかけてくる敵がいなくなってから探索の曲に戻るまで |
+| `WIND_DB`（ambience.gd） | −14 dB | 風と鳥の音量 |
+| `WATER_NEAR_DB` / `WATER_FAR_DB` / `WATER_HEAR_DISTANCE` | −8 dB / −40 dB / 30 m | 水のすぐそば／聞こえる範囲の端の音量、聞こえる距離 |
+| 花の音の音量（sfx.gd） | 白 −8 dB、赤 −6 dB（高さ0.75倍）、花びら −12 dB | |
 | `SOFT_LOCK_HALF_ANGLE_DEG` | 90° | ソフトロックで向く角度（左右）（11/17 追加） |
 
 ### 5.2 攻撃表（`ATTACKS`）

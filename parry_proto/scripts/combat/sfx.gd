@@ -18,6 +18,10 @@ const SOUNDS := {
 	"parry": {"files": ["res://sounds/impactBell_heavy_000.ogg"], "volume_db": -6.0, "pitch_jitter": 0.04},
 	"perfect_dodge": {"files": ["res://sounds/cloth1.ogg"], "volume_db": 0.0, "pitch_jitter": 0.0},
 	"break": {"files": ["res://sounds/impactPlate_heavy_000.ogg"], "volume_db": -2.0, "pitch_jitter": 0.0},
+	# 敵の頭の花が開く音（A-03。11/19）：白＝軽いガラスの音、赤＝重い鐘の音（パリィの鐘と分かるように低くする）。花びらの布の音を重ねる
+	"flower_white": {"files": ["res://sounds/impactGlass_light_000.ogg", "res://sounds/impactGlass_light_001.ogg", "res://sounds/impactGlass_light_002.ogg"], "volume_db": -8.0, "pitch_jitter": 0.05},
+	"flower_red": {"files": ["res://sounds/impactBell_heavy_002.ogg", "res://sounds/impactBell_heavy_003.ogg"], "volume_db": -6.0, "pitch_jitter": 0.03, "pitch": 0.75},
+	"petal": {"files": ["res://sounds/cloth2.ogg", "res://sounds/cloth3.ogg"], "volume_db": -12.0, "pitch_jitter": 0.1},
 }
 const MAX_POLYPHONY := 4  # 同じ音が重なって鳴ってよい数（連続ヒットで前の音が切れないように）
 
@@ -56,6 +60,7 @@ func _ready() -> void:
 		_players[kind] = p
 	GameFeel.spark_requested.connect(_on_spark)
 	GameFeel.witch_time_changed.connect(_on_witch_time_changed)
+	GameFeel.flower_opened.connect(_on_flower_opened)
 
 
 func play(kind: String) -> void:
@@ -67,13 +72,18 @@ func play(kind: String) -> void:
 	if p == null or _muted:
 		return
 	var jitter: float = SOUNDS[kind]["pitch_jitter"]
-	p.pitch_scale = 1.0 + randf_range(-jitter, jitter)
+	p.pitch_scale = float(SOUNDS[kind].get("pitch", 1.0)) + randf_range(-jitter, jitter)
 	p.play()
 
 
 # 火花の種類（GameFeel.SPARK_*）と効果音の種類は同じ名前にしてある
 func _on_spark(_pos: Vector3, kind: String) -> void:
 	play(kind)
+
+
+func _on_flower_opened(red: bool) -> void:
+	play("flower_red" if red else "flower_white")
+	play("petal")
 
 
 func _on_witch_time_changed(active: bool) -> void:
