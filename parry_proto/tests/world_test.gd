@@ -254,7 +254,8 @@ func _check_fragments() -> void:
 # 起伏（T-01。6b）：広場は±1m、ホールは±0.8m、はしと噴水のまわりは平ら。敵は地面の上に立つ
 func _check_terrain() -> void:
 	var ranges := []
-	for t in WorldBuilder.terrains:
+	for tt in WorldBuilder.terrains.slice(0, 2):  # 最初の2つが広場とホール（あとは広い街）
+		var t: Terrain = tt
 		var lo := INF
 		var hi := -INF
 		var x := t.area.position.x
@@ -270,7 +271,7 @@ func _check_terrain() -> void:
 	var plaza: Array = ranges[0]
 	var hall: Array = ranges[1]
 	_results["広場の起伏は±1m（%.2f〜%.2f）、ホールは±0.8m（%.2f〜%.2f）" % [plaza[0], plaza[1], hall[0], hall[1]]] = (
-		WorldBuilder.terrains.size() == 2 and plaza[0] >= -1.01 and plaza[1] <= 1.01 and hall[0] >= -0.81 and hall[1] <= 0.81
+		WorldBuilder.terrains.size() >= 2 and plaza[0] >= -1.01 and plaza[1] <= 1.01 and hall[0] >= -0.81 and hall[1] <= 0.81
 		and maxf(absf(plaza[0]), plaza[1]) > 0.2 and maxf(absf(hall[0]), hall[1]) > 0.15)
 	var edge := absf(WorldBuilder.ground_y(-10.95, -1.0)) + absf(WorldBuilder.ground_y(0.0, 9.95)) + absf(WorldBuilder.ground_y(0.0, -30.05))
 	_results["はし（街への出口・入口）と噴水のまわりは平ら（%.3f、噴水 %.3f）" % [edge, WorldBuilder.ground_y(0, -1)]] = edge < 0.05 and absf(WorldBuilder.ground_y(0, -1)) < 0.001
@@ -280,6 +281,42 @@ func _check_terrain() -> void:
 		if absf(e.global_position.y - g) > 0.3:
 			bad.append("%s（%.2f／地面 %.2f）" % [e.display_name, e.global_position.y, g])
 	_results["広場の敵とボスは地面の上に立つ（ずれ：%s）" % str(bad)] = bad.is_empty()
+	# 広い街の起伏（6c）：高さと坂、一本道と川のまわりは平ら、建物の下にすき間がない
+	var city: Array = WorldBuilder.terrains.slice(2)
+	var lo := INF
+	var hi := -INF
+	var slope := 0.0
+	for t in city:
+		slope = maxf(slope, t.max_slope_deg(2.0))
+		var x: float = t.area.position.x
+		while x <= t.area.end.x:
+			var z: float = t.area.position.y
+			while z <= t.area.end.y:
+				var h: float = t.height_at(x, z)
+				lo = minf(lo, h)
+				hi = maxf(hi, h)
+				z += 4.0
+			x += 4.0
+	_results["広い街の起伏：%d 枚、高さ %.1f〜%.1f m、いちばん急な坂 %.1f°" % [city.size(), lo, hi, slope]] = (
+		city.size() >= 10 and lo >= -Terrain.HOLLOW_MAX - 0.01 and hi <= Terrain.HILL_MAX + 0.01 and hi > 2.0 and slope <= Terrain.MAX_SLOPE_DEG)
+	var flat := absf(WorldBuilder.ground_y(20.0, 0.0)) + absf(WorldBuilder.ground_y(-20.0, 40.0)) + absf(WorldBuilder.ground_y(-60.0, CityBuilder.RIVER_Z.x - 0.5))
+	_results["一本道のエリアと川のまわりは平ら（%.3f）" % flat] = flat < 0.01
+	var gaps: Array[String] = []
+	for b in get_tree().get_nodes_in_group("city_building"):
+		var body := b as StaticBody3D
+		var cs := body.get_child(0) as CollisionShape3D
+		var sz: Vector3 = (cs.shape as BoxShape3D).size
+		var bottom := body.global_position.y - sz.y * 0.5
+		if bottom > 0.05:
+			continue  # 上の階の部分（崩れたビル）
+		for cc in [Vector2(-0.5, -0.5), Vector2(0.5, -0.5), Vector2(-0.5, 0.5), Vector2(0.5, 0.5)]:
+			var c: Vector2 = cc
+			var gx := body.global_position.x + c.x * sz.x
+			var gz := body.global_position.z + c.y * sz.z
+			if WorldBuilder.ground_y(gx, gz) < bottom - 0.01:
+				gaps.append(str(body.global_position))
+				break
+	_results["街の建物の下にすき間がない（すき間：%d）" % gaps.size()] = gaps.is_empty()
 
 
 func _place(pos: Vector3) -> void:

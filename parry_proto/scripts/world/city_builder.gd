@@ -61,6 +61,8 @@ var _merged := {}   # 材質の種類（"concrete" ／ "plaster"）→ SurfaceTo
 var _kit: RuinKit
 var _nature: NatureKit
 var _parks: Array[Rect2] = []
+var _g := 0.0                       # 今置いている建物の真ん中の地面の高さ（起伏。6c）
+var tower_g := 0.0                  # 見晴らしの塔の地面の高さ
 var _roofs: Array[Vector3] = []       # 崩れていないビルの屋上の真ん中（強化アイテムを置く）
 var side_spots: Array = []            # 寄り道の敵：[場所, 種類]（main.gd が作る。W-15 ④-3）
 var _ground_upgrades: Array[Vector3] = []  # 道に置いた強化アイテム（寄り道の敵が守る）
@@ -74,6 +76,9 @@ const TREES_PER_PARK := Vector2i(2, 4)
 const CITY_CARS := 26              # 通りに置く車の数
 const CITY_SIGNS := 10
 const CITY_LAMPS := 24
+const TERRAIN_BLEND := 16.0        # 一本道のエリアのまわりで、起伏を高さ0へなじませる距離（m。短いと坂が35°を超える）
+const RIVER_BLEND := 16.0          # 川のまわりで、起伏を高さ0へなじませる距離（m）
+const BUILDING_SINK := 0.5         # 起伏の上の建物は、敷地のいちばん低い所よりこれだけ地下へ伸ばす（m）
 const FACES := [Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)]
 # 記録の断片（W-15。④-1）：[種類, 文章]。置く場所は、塔の下・橋のたもと・空き地・交差点の順に決める
 # アイテム（W-15 ④-2）
@@ -134,29 +139,32 @@ func build(root: Node3D, kit: RuinKit, nature: NatureKit) -> void:
 	_build_vistas(root)
 
 
+# 地面（T-01。6c）：地面の板ごとに起伏を作る。どの板も同じ高さの決め方なので、つなぎ目はそろう
+#  一本道のエリア（CORRIDOR）と川のまわりは平ら（高さ0）で、まわり TERRAIN_BLEND m でなじませる
 func _build_ground(root: Node3D) -> void:
-	if "--terrain-trial" in OS.get_cmdline_user_args():
-		_build_terrain_trial(root)
-		return
+	var mat := WorldMaterials.make("street")
 	for g in GROUNDS:
 		var xr: Vector2 = g[0]
 		var zr: Vector2 = g[1]
-		var size := Vector3(xr.y - xr.x, GROUND_THICKNESS, zr.y - zr.x)
-		var pos := Vector3((xr.x + xr.y) * 0.5, -GROUND_THICKNESS * 0.5, (zr.x + zr.y) * 0.5)
-		WorldBuilder._add_box(root, pos, size, WorldMaterials.make("street"), true)
+		var t := Terrain.new()
+		t.name = "CityTerrain"
+		t.area = Rect2(xr.x, zr.x, xr.y - xr.x, zr.y - zr.x)
+		t.flat_zones = [[CORRIDOR, TERRAIN_BLEND], [Rect2(CITY_MIN.x, RIVER_Z.x - 1.0, CITY_MAX.x - CITY_MIN.x, RIVER_Z.y - RIVER_Z.x + 2.0), RIVER_BLEND]]
+		t.material = mat
+		t.build(root)
+		WorldBuilder.terrains.append(t)
+		# 起伏の下の受け（すき間から落ちないように）
+		var size := Vector3(xr.y - xr.x, 1.0, zr.y - zr.x)
+		WorldBuilder._add_box(root, Vector3((xr.x + xr.y) * 0.5, -Terrain.HOLLOW_MAX - 1.5, (zr.x + zr.y) * 0.5), size, mat, false)
 
 
-# 試し（6a）：街全体に起伏を作る。一本道のエリアと川は平らのまま（まわり4mでなじませる）
-#  建物などはまだ置き直していない（6c で行う）。重さと見た目を確かめるためだけ
-func _build_terrain_trial(root: Node3D) -> void:
-	var t := Terrain.new()
-	t.name = "Terrain"
-	t.area = Rect2(CITY_MIN, CITY_MAX - CITY_MIN)
-	t.flat_zones = [[CORRIDOR, 4.0], [Rect2(CITY_MIN.x, RIVER_Z.x - 2.0, CITY_MAX.x - CITY_MIN.x, RIVER_Z.y - RIVER_Z.x + 4.0), 4.0]]
-	t.material = WorldMaterials.make("street")
-	t.build(root)
-	# 地面の下の受け（起伏の下に落ちないように）
-	WorldBuilder._add_box(root, Vector3(0, -Terrain.HOLLOW_MAX - 1.5, 0), Vector3(CITY_MAX.x - CITY_MIN.x, 1.0, CITY_MAX.y - CITY_MIN.y), WorldMaterials.make("street"), false)
+# その場所の地面の高さ（起伏）
+func _ground(x: float, z: float) -> float:
+	return WorldBuilder.ground_y(x, z)
+
+
+func _on_ground(p: Vector3) -> Vector3:
+	return WorldBuilder.on_ground(p)
 
 
 func _build_river(root: Node3D) -> void:
@@ -227,6 +235,7 @@ func _build_block(root: Node3D, cell: Rect2) -> void:
 
 # 街のビル：そのまま／上の階が半分（角だけ）崩れ落ちた／段々に崩れた、のどれか（11/19）
 func _add_city_building(root: Node3D, pos: Vector3, size: Vector3, ruin: bool) -> void:
+	_g = _ground(pos.x, pos.z)   # この建物の基準の高さ（起伏）。部分も瓦礫もここからの高さで置く
 	if ruin:
 		_add_building(root, pos, size, false)
 		return
@@ -252,7 +261,7 @@ func _add_city_building(root: Node3D, pos: Vector3, size: Vector3, ruin: bool) -
 			up_pos += other * (1.0 if rng.randf() < 0.5 else -1.0) * (size.z if along_x else size.x) * (1.0 - k2) * 0.5
 		_add_building(root, up_pos, up_size, true, false)
 		# 崩れた縁：むき出しの鉄筋、垂れ下がった床の板、下の瓦礫の山
-		var edge := up_pos - axis * side * (length * keep * 0.5) + Vector3.DOWN * (up_size.y * 0.5)
+		var edge := up_pos - axis * side * (length * keep * 0.5) + Vector3.DOWN * (up_size.y * 0.5) + Vector3.UP * _g
 		var out := -axis * side
 		for i in rng.randi_range(5, 9):
 			var t := rng.randf_range(-0.45, 0.45) * (size.z if along_x else size.x)
@@ -260,8 +269,8 @@ func _add_city_building(root: Node3D, pos: Vector3, size: Vector3, ruin: bool) -
 		var slab_basis := Basis(Vector3.BACK if along_x else Vector3.RIGHT, rng.randf_range(0.4, 0.9) * (-side if along_x else side))
 		_kit._add("block", Transform3D(slab_basis * RuinKit._fbasis(rng.randf_range(2.0, 4.0), 0.25, 2.2, not along_x), edge + out * 1.0), Color.WHITE.darkened(0.25))
 		var heap_center := pos + out * (length * 0.5 + 2.5)
-		_rubble_heap(heap_center, 3.5)
-		_rubble_heap(Vector3(edge.x, h1, edge.z) + out * (length * (1.0 - keep) * 0.4), 2.0)  # 下の階の屋上にも
+		_rubble_heap(_on_ground(Vector3(heap_center.x, 0.0, heap_center.z)), 3.5)
+		_rubble_heap(Vector3(edge.x, h1 + _g, edge.z) + out * (length * (1.0 - keep) * 0.4), 2.0)  # 下の階の屋上にも
 		stats["collapsed"] = stats.get("collapsed", 0) + 1
 	elif r < COLLAPSE_HALF_RATE + COLLAPSE_STEP_RATE:
 		# 段々に崩れた：長い向きに3つに分けて、高さを順に下げる
@@ -274,11 +283,12 @@ func _add_city_building(root: Node3D, pos: Vector3, size: Vector3, ruin: bool) -
 			var seg_size := Vector3(seg_len, h, size.z) if along_x else Vector3(size.x, h, seg_len)
 			var seg_pos := Vector3(pos.x, h * 0.5, pos.z) + axis * (-length * 0.5 + seg_len * (i + 0.5))
 			_add_building(root, seg_pos, seg_size, true, i == 0)
-		_rubble_heap(pos + axis * side * (length * 0.5 + 2.0), 3.0)
+		var hc := pos + axis * side * (length * 0.5 + 2.0)
+		_rubble_heap(_on_ground(Vector3(hc.x, 0.0, hc.z)), 3.0)
 		stats["collapsed"] = stats.get("collapsed", 0) + 1
 	else:
 		_add_building(root, pos, size)
-		_roofs.append(Vector3(pos.x, size.y, pos.z))
+		_roofs.append(Vector3(pos.x, size.y + _g, pos.z))
 
 
 # 瓦礫の山：ごつごつした塊を、真ん中ほど高く積む（見た目だけ）
@@ -295,13 +305,25 @@ func _rubble_heap(center: Vector3, radius: float) -> void:
 
 func _add_building(root: Node3D, pos: Vector3, size: Vector3, windows: bool = true, roof: bool = true) -> void:
 	var tint := WorldBuilder._tint("BUILDING", rng)
+	# 起伏（6c）：基準の高さ _g だけ上げる。地面に立つ部分は、敷地のいちばん低い所より下まで伸ばす
+	var base := pos.y - size.y * 0.5          # 起伏を入れる前の下の高さ（地面に立つ部分は0）
+	var deco_ground := base + _g              # 窓を付け始める高さ
+	pos.y += _g
+	if base < 0.05:
+		var lo := _g
+		for c in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
+			lo = minf(lo, _ground(pos.x + c.x * size.x * 0.5, pos.z + c.y * size.z * 0.5))
+		var top := pos.y + size.y * 0.5
+		var bottom := lo - BUILDING_SINK
+		size = Vector3(size.x, top - bottom, size.z)
+		pos.y = (top + bottom) * 0.5
 	# 飾り（③）：窓などは、ランダムな2つの面に付ける（廃墟は崩れた屋上だけ）
 	if windows:
 		# 4つの面すべてに付ける（屋上の塊は1回だけ）
 		for i in FACES.size():
-			_kit.decorate_building(pos, size, FACES[i], maxf(pos.y - size.y * 0.5, 0.0), tint, i == 0 and roof)
+			_kit.decorate_building(pos, size, FACES[i], deco_ground, tint, i == 0 and roof)
 	elif roof:
-		_kit.decorate_building(pos, size, Vector3.ZERO, 0.0, tint)
+		_kit.decorate_building(pos, size, Vector3.ZERO, deco_ground, tint)
 	var kind := "plaster" if rng.randf() < 0.5 else "concrete"
 	# 当たり判定だけの箱
 	var body := StaticBody3D.new()
@@ -347,7 +369,7 @@ func _build_greenery() -> void:
 		var c := p.get_center()
 		_nature.scatter_area(Vector3(c.x, 0, c.y), p.size, 0.0, PARK_DENSITY)
 		for i in rng.randi_range(TREES_PER_PARK.x, TREES_PER_PARK.y):
-			_nature.add_tree(Vector3(c.x + rng.randf_range(-11, 11), 0, c.y + rng.randf_range(-11, 11)), rng.randf_range(5.0, 9.0))
+			_nature.add_tree(_on_ground(Vector3(c.x + rng.randf_range(-11, 11), 0, c.y + rng.randf_range(-11, 11))), rng.randf_range(5.0, 9.0))
 
 
 # 通りの車・看板・街灯：道の真ん中の線の近くに置く（一本道・川・塔はよける）
@@ -371,12 +393,12 @@ func _build_street_props(root: Node3D) -> void:
 			continue
 		var yaw := (0.0 if along_z else PI * 0.5) + rng.randf_range(-0.3, 0.3)
 		if placed < CITY_CARS:
-			WorldBuilder.add_car(root, _kit, pos, yaw + (PI if rng.randf() < 0.5 else 0.0), rng.randf() < 0.1)
+			WorldBuilder.add_car(root, _kit, _on_ground(pos), yaw + (PI if rng.randf() < 0.5 else 0.0), rng.randf() < 0.1)
 		elif placed < CITY_CARS + CITY_SIGNS:
-			_kit.add_sign(pos + Vector3(side * 1.5, 0, 0) if along_z else pos + Vector3(0, 0, side * 1.5), rng.randf_range(-PI, PI), rng.randf_range(-1.0, 1.0))
+			_kit.add_sign(_on_ground(pos + Vector3(side * 1.5, 0, 0) if along_z else pos + Vector3(0, 0, side * 1.5)), rng.randf_range(-PI, PI), rng.randf_range(-1.0, 1.0))
 		else:
 			var edge := pos + (Vector3(side * 1.8, 0, 0) if along_z else Vector3(0, 0, side * 1.8))
-			_nature.add_street_lamp(edge, yaw + (PI * 0.5 * side), rng.randf_range(-0.3, 0.3) if rng.randf() < 0.3 else 0.0)
+			_nature.add_street_lamp(_on_ground(edge), yaw + (PI * 0.5 * side), rng.randf_range(-0.3, 0.3) if rng.randf() < 0.3 else 0.0)
 		placed += 1
 	stats["street_props"] = placed
 
@@ -418,7 +440,7 @@ func _build_fragments(root: Node3D) -> void:
 		sign.fragment_id = i
 		sign.kind = FRAGMENTS[i][0]
 		sign.text = FRAGMENTS[i][1]
-		sign.position = spots[i]
+		sign.position = _on_ground(spots[i])
 		_used_spots.append(spots[i])
 		sign.rotation.y = rng.randf_range(-PI, PI)
 		root.add_child(sign)
@@ -436,7 +458,7 @@ func _build_pickups(root: Node3D) -> void:
 	for i in UPGRADE_ITEMS.size():
 		var pos: Vector3
 		if i == 0:
-			pos = TOWER_POS + Vector3.UP * TOWER_SIZE.y
+			pos = TOWER_POS + Vector3.UP * (TOWER_SIZE.y + tower_g)
 		elif i <= ROOF_UPGRADES and not roofs.is_empty():
 			pos = roofs.pop_at(rng.randi() % roofs.size())
 		else:
@@ -467,7 +489,7 @@ func _add_pickup(root: Node3D, kind: String, id: int, pos: Vector3) -> void:
 	item.name = "Pickup%d_%s" % [id, kind]
 	item.kind = kind
 	item.item_id = id
-	item.position = pos
+	item.position = pos if pos.y > 0.5 else _on_ground(pos)  # 屋上（高さあり）はそのまま、地面は起伏の高さに
 	root.add_child(item)
 	_used_spots.append(pos)
 
@@ -486,12 +508,12 @@ func _build_side_spots() -> void:
 
 func _add_side_group(center: Vector3, kinds: Array) -> void:
 	for j in kinds.size():
-		side_spots.append([center + SIDE_OFFSETS[j], kinds[j]])
+		side_spots.append([_on_ground(center + SIDE_OFFSETS[j]), kinds[j]])
 
 
 # 眺めのいい場所：場所と、カメラの動き（cam_from → cam_to）・見る所（look_from → look_to）
 func _build_vistas(root: Node3D) -> void:
-	var top := TOWER_POS + Vector3.UP * TOWER_SIZE.y
+	var top := TOWER_POS + Vector3.UP * (TOWER_SIZE.y + tower_g)
 	var river_z := (RIVER_Z.x + RIVER_Z.y) * 0.5
 	var bridge := Vector3(BRIDGES_X[0], 0.0, river_z)
 	var high := _roofs[0]
@@ -501,7 +523,7 @@ func _build_vistas(root: Node3D) -> void:
 	var defs := [
 		[top, top + Vector3(5, 8, 8), top + Vector3(-5, 10, -5), Vector3(30, 0, 60), Vector3(0, 10, -50)],  # 屋上の崩れた塊より上から
 		[bridge, bridge + Vector3(3, 3, -4), bridge + Vector3(5, 6, 3), Vector3(-30, 0, river_z), Vector3(60, 4, river_z)],
-		[high, high + Vector3(-3, 4, 3), high + Vector3(3, 6, -3), TOWER_POS + Vector3.UP * 25.0, Vector3(0, 3, 0)],
+		[high, high + Vector3(-3, 4, 3), high + Vector3(3, 6, -3), TOWER_POS + Vector3.UP * (25.0 + tower_g), Vector3(0, 3, 0)],
 	]
 	for i in VISTAS.size():
 		var v := Vista.new()
@@ -575,6 +597,8 @@ func _build_merged(root: Node3D) -> void:
 
 # 見晴らしの塔：細長いビル。7mごとに、休める出っぱりを付ける（高さごとに向きを変えて、ぐるっと回りながら登る）
 func _build_tower(root: Node3D) -> void:
+	_g = _ground(TOWER_POS.x, TOWER_POS.z)
+	tower_g = _g
 	_add_building(root, TOWER_POS + Vector3.UP * TOWER_SIZE.y * 0.5, TOWER_SIZE)
 	var dirs := [Vector3.RIGHT, Vector3.BACK, Vector3.LEFT, Vector3.FORWARD]
 	var y := TOWER_LEDGE_STEP
@@ -583,7 +607,7 @@ func _build_tower(root: Node3D) -> void:
 	while y < TOWER_SIZE.y - 1.0:
 		var dir: Vector3 = dirs[i % 4]
 		var ledge_size := Vector3(1.6, 0.4, TOWER_SIZE.z * 0.6) if absf(dir.x) > 0.5 else Vector3(TOWER_SIZE.x * 0.6, 0.4, 1.6)
-		var pos := TOWER_POS + Vector3.UP * y + dir * (TOWER_SIZE.x * 0.5 + 0.8)
+		var pos := TOWER_POS + Vector3.UP * (y + tower_g) + dir * (TOWER_SIZE.x * 0.5 + 0.8)
 		last = WorldBuilder._add_box(root, pos, ledge_size, WorldMaterials.make("concrete"), true)
 		(last.get_child(1) as MeshInstance3D).mesh = ShapeKit.beveled_box(ledge_size, 0.08)
 		y += TOWER_LEDGE_STEP
