@@ -25,6 +25,10 @@ enum State { IDLE, CHASE, TELEGRAPH, ATTACK, RECOVER, STAGGER, BROKEN, HITSTUN, 
 
 @export var display_name := "敵"
 @export var aggro_range := 15.0           # この距離まで近づくと動き出す
+# 頭の花（F-01）：開いた花の素材（res://models/flowers/ の名前）・横幅（m）・重ねる枚数
+@export var flower_model := "Petal_5"
+@export var flower_size := 0.45
+@export var flower_layers := 1
 @export var side_id := -1                 # 街の寄り道の敵（W-15 ④-3）の番号。-1 は広場・ボスの敵
 const SIDE_LEASH_MULT := 2.5              # 寄り道の敵は、気づく距離のこの倍より離れると追うのをやめる
 @export var max_hp := 80
@@ -123,6 +127,7 @@ var _base := {}                # 難易度を掛ける前の値（apply_difficul
 @onready var hurtbox: Hurtbox = $Hurtbox
 @onready var model: CharacterModel = $Model
 var warn_light: OmniLight3D   # 攻撃の合図の赤い光（まわりを照らす）
+var flower: EnemyFlower       # 頭の花（F-01）
 
 
 func _ready() -> void:
@@ -130,6 +135,14 @@ func _ready() -> void:
 	add_to_group("enemies")
 	if recolor_model:
 		model.set_body_color(body_color)
+	# 頭の花（F-01）：顔の代わりに付ける。第2形態がある敵（ボス）は、肩と背中の花も用意しておく
+	var skel := model.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skel != null:
+		flower = EnemyFlower.new()
+		flower.name = "Flower"
+		flower.setup(skel, self, flower_model, flower_size, flower_layers)
+		if phase2_hp_ratio > 0.0:
+			flower.add_extras()
 	warn_light = OmniLight3D.new()
 	warn_light.name = "WarnLight"
 	warn_light.light_color = WARN_LIGHT_COLOR
@@ -533,6 +546,39 @@ func _update_visual() -> void:
 	# 攻撃の合図の間は、まわりを赤く照らす（白い合図・赤い合図・ニセの合図のどれでも）
 	if warn_light != null:
 		warn_light.light_energy = WARN_LIGHT_ENERGY if is_glinting() and state != State.DEAD else 0.0
+	_update_flower()
+
+
+# 頭の花（F-01）：合図で開く（白／赤。ニセの光は半分だけ白く）、攻撃が終わるとゆっくり閉じる、倒れると満開
+func _update_flower() -> void:
+	if flower == null:
+		return
+	flower.follow()
+	var target := 0.0
+	var col := EnemyFlower.COLOR_BUD
+	var real_col := EnemyFlower.COLOR_RED if _current_unparryable else EnemyFlower.COLOR_WHITE
+	match state:
+		State.TELEGRAPH:
+			if is_fake_glint():
+				target = EnemyFlower.FEINT_OPEN
+				col = EnemyFlower.COLOR_WHITE
+			elif is_glinting():
+				target = 1.0
+				col = real_col
+		State.ATTACK:
+			target = 1.0
+			col = real_col
+		State.DEAD:
+			target = EnemyFlower.DEATH_OPEN
+			col = EnemyFlower.COLOR_DEAD
+	flower.step_toward(target, col)
+	# 第2形態：切り替わりの間に、肩と背中の花が咲く（「全身が咲く」）
+	if _phase2 and flower.extra_count() > 0:
+		var a := 1.0
+		if state == State.PHASE_CHANGE:
+			a = clampf(float(state_frame) / float(phase2_transition_frames), 0.0, 1.0)
+		if absf(flower.extra_amount() - a) > 0.001:
+			flower.set_extra(a)
 
 
 func _current_attack_anim() -> Dictionary:

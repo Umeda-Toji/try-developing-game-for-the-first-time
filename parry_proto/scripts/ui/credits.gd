@@ -35,6 +35,7 @@ Quaternius（https://quaternius.com）
 ・Modular Character Outfits - Fantasy（プレイヤー・ボスの服：Ranger）
 ・Universal Animation Library ／ Universal Animation Library 2（アニメーション、ザコのマネキン）
 ・LowPoly Medieval Weapons（剣・ハンマー・短剣）
+・Stylized Nature MegaKit（敵の頭の花：Petal_1〜5）
 ライセンス：CC0 1.0（パブリックドメイン）。表記は必須ではないが、感謝を込めて記載
 """
 

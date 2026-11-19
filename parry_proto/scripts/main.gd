@@ -29,6 +29,7 @@ const ENEMY_KINDS := {
 		"feint_every": 3,  # 3回に1回フェイント攻撃（E-10）
 		"model_path": ZAKO_MODEL,  # マネキンを body_color（赤）で塗る（P-16）
 		"sword_path": "res://models/weapons/Sword_2.fbx",
+		"flower_model": "Petal_5", "flower_size": 0.45,  # 頭の花（F-01）：5枚の広い花びら
 	}],
 	"heavy": ["重装兵", Vector3(1.1, 1.95, 1.1), {
 		"aggro_range": 10.0, "max_hp": 120, "max_posture": 100.0, "move_speed": 2.0, "attack_range": 2.6,
@@ -36,6 +37,7 @@ const ENEMY_KINDS := {
 		"unparryable_every": 2, "body_color": Color(0.45, 0.47, 0.52),
 		"model_path": ZAKO_MODEL, "sword_path": "res://models/weapons/Hammer_Double.fbx",
 		"sword_length": 1.1, "sword_model_length": 4.97,
+		"flower_model": "Petal_3", "flower_size": 0.6,  # 頭の花：6枚のとがった花びら
 	}],
 	"swift": ["双剣士", Vector3(0.8, 1.45, 0.8), {
 		"aggro_range": 10.0, "max_hp": 50, "max_posture": 40.0, "move_speed": 4.5, "attack_range": 1.9,
@@ -47,6 +49,7 @@ const ENEMY_KINDS := {
 			{"clip": "ual2/Sword_Regular_A", "from": 0.05, "key": 0.21, "to": 0.43},
 			{"clip": "ual2/Sword_Regular_B", "from": 0.05, "key": 0.22, "to": 0.53},
 		],
+		"flower_model": "Petal_1", "flower_size": 0.35,  # 頭の花：少ない細い花びら
 	}],
 	"caster": ["魔法使い", Vector3(0.9, 1.7, 0.9), {
 		"ranged": true, "aggro_range": 12.0, "max_hp": 40, "max_posture": 40.0, "move_speed": 2.5,
@@ -55,6 +58,7 @@ const ENEMY_KINDS := {
 		"damage": 12, "body_color": Color(0.3, 0.4, 0.95), "model_path": ZAKO_MODEL,
 		"attack_anims": [{"clip": "ual1/Spell_Simple_Shoot", "windup_clip": "ual1/Spell_Simple_Enter",
 			"from": 0.0, "key": 0.08, "to": 0.5}],
+		"flower_model": "Petal_2", "flower_size": 0.45,  # 頭の花：細い星の形
 	}],
 }
 const BOSS_MODEL := "res://models/outfits/Female_Ranger.gltf"
@@ -85,7 +89,8 @@ const TEST_SCRIPTS := {
 	"--save-test": "res://tests/save_test.gd",  # セーブ（S-01）
 	"--map-test": "res://tests/map_test.gd",  # 地図（C）
 	"--settings-test": "res://tests/settings_test.gd",  # 設定（O-01）
-	"--lockon-test": "res://tests/lockon_test.gd",  # ロックオンの切り替え（L-01）  # 景色の確認用（テストではない。エリアを順に映す）
+	"--lockon-test": "res://tests/lockon_test.gd",  # ロックオンの切り替え（L-01）
+	"--flower-test": "res://tests/flower_test.gd",  # 敵の頭の花（F-01）  # 景色の確認用（テストではない。エリアを順に映す）
 }
 const TITLE_TEST_FLAG := "--title-test"  # テストのうち、これだけはタイトル画面を出す
 const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
@@ -177,7 +182,8 @@ func _ready() -> void:
 		# 見た目（P-16）：女性の素体モデル。素材の色のまま、連撃は2種類の斬りを交互に
 		"model_path": BOSS_MODEL, "head_path": BOSS_HEAD, "outfit_texture": BOSS_OUTFIT_TEXTURE,
 		"recolor_model": false,
-		"sword_path": "res://models/weapons/Claymore.fbx",  # 赤い大剣（ボスは1.6倍に拡大しているので、剣も大きくなる）
+		"sword_path": "res://models/weapons/Claymore.fbx",
+		"flower_model": "Petal_5", "flower_size": 0.9, "flower_layers": 2,  # 頭の花：2枚重ね。第2形態で肩・背中にも咲く  # 赤い大剣（ボスは1.6倍に拡大しているので、剣も大きくなる）
 		"attack_anims": [
 			{"clip": "ual2/Sword_Regular_A", "from": 0.05, "key": 0.21, "to": 0.43},
 			{"clip": "ual2/Sword_Regular_B", "from": 0.05, "key": 0.22, "to": 0.53},
