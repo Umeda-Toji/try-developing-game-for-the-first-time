@@ -397,6 +397,10 @@ func _build_result_screen() -> void:
 func apply_saved_position() -> void:
 	if not Discoveries.has_position:
 		return
+	# 起伏（T-01）を入れる前のセーブで、地面の中になっていたら、地面の上に置き直す
+	var sp := Discoveries.saved_position
+	sp.y = maxf(sp.y, WorldBuilder.ground_y(sp.x, sp.z) + 0.1)
+	Discoveries.saved_position = sp
 	player.global_position = Discoveries.saved_position
 	player.safe_position = Discoveries.saved_position
 	player.reset_physics_interpolation()
@@ -567,7 +571,7 @@ func _build_world() -> void:
 
 # 出てくる場所：エリアのときは WorldBuilder の表、部屋（テスト）のときは test_pos
 func _spawn(key: String, test_pos: Vector3) -> Vector3:
-	return WorldBuilder.SPAWNS[key] if use_world else test_pos
+	return WorldBuilder.on_ground(WorldBuilder.SPAWNS[key]) if use_world else test_pos  # 起伏（T-01）の上なら地面の高さに
 
 
 func _add_static_box(pos: Vector3, size: Vector3, color: Color) -> void:

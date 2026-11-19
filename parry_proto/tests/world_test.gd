@@ -184,7 +184,7 @@ func _check_layout() -> void:
 	var bad: Array[String] = []
 	for name in points.keys():
 		var xz: Vector3 = points[name][0]
-		var expect: float = points[name][1]
+		var expect: float = points[name][1] + WorldBuilder.ground_y(xz.x, xz.z)  # 起伏（T-01）の上なら、その高さ
 		var from := Vector3(xz.x, 5.5, xz.z)
 		var q := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 20.0, 1)
 		var hit := _p.get_world_3d().direct_space_state.intersect_ray(q)
@@ -192,6 +192,7 @@ func _check_layout() -> void:
 			ok = false
 			bad.append(name)
 	_results["道の床がつながっている（だめ：%s）" % str(bad)] = ok
+	_check_terrain()
 	# 廃墟の飾り（W-06）：種類ごとに MultiMesh でまとめて描いている。シードが同じなら、作り直しても同じ街になる
 	var decor: Dictionary = _main.world_decor
 	var kinds := ["window", "frame", "rail", "rebar", "chunk", "car", "wheel", "vine", "leaf", "block", "grass", "fern", "nettle", "weed", "shrub", "rock", "rubble", "tree", "crown", "trunk", "branch", "log", "lamp"]
@@ -248,6 +249,37 @@ func _check_fragments() -> void:
 		if f.text.length() > 80:
 			bad.append("%s の文章が長い" % f.name)
 	_results["記録の断片が街に%d ある（置き場所がおかしい：%s）" % [frags.size(), str(bad)]] = frags.size() == CityBuilder.FRAGMENTS.size() and bad.is_empty()
+
+
+# 起伏（T-01。6b）：広場は±1m、ホールは±0.8m、はしと噴水のまわりは平ら。敵は地面の上に立つ
+func _check_terrain() -> void:
+	var ranges := []
+	for t in WorldBuilder.terrains:
+		var lo := INF
+		var hi := -INF
+		var x := t.area.position.x
+		while x <= t.area.end.x:
+			var z := t.area.position.y
+			while z <= t.area.end.y:
+				var h := t.height_at(x, z)
+				lo = minf(lo, h)
+				hi = maxf(hi, h)
+				z += 0.5
+			x += 0.5
+		ranges.append([lo, hi])
+	var plaza: Array = ranges[0]
+	var hall: Array = ranges[1]
+	_results["広場の起伏は±1m（%.2f〜%.2f）、ホールは±0.8m（%.2f〜%.2f）" % [plaza[0], plaza[1], hall[0], hall[1]]] = (
+		WorldBuilder.terrains.size() == 2 and plaza[0] >= -1.01 and plaza[1] <= 1.01 and hall[0] >= -0.81 and hall[1] <= 0.81
+		and maxf(absf(plaza[0]), plaza[1]) > 0.2 and maxf(absf(hall[0]), hall[1]) > 0.15)
+	var edge := absf(WorldBuilder.ground_y(-10.95, -1.0)) + absf(WorldBuilder.ground_y(0.0, 9.95)) + absf(WorldBuilder.ground_y(0.0, -30.05))
+	_results["はし（街への出口・入口）と噴水のまわりは平ら（%.3f、噴水 %.3f）" % [edge, WorldBuilder.ground_y(0, -1)]] = edge < 0.05 and absf(WorldBuilder.ground_y(0, -1)) < 0.001
+	var bad: Array[String] = []
+	for e in [_main.heavy, _main.swift, _main.caster, _main.boss]:
+		var g := WorldBuilder.ground_y(e.global_position.x, e.global_position.z)
+		if absf(e.global_position.y - g) > 0.3:
+			bad.append("%s（%.2f／地面 %.2f）" % [e.display_name, e.global_position.y, g])
+	_results["広場の敵とボスは地面の上に立つ（ずれ：%s）" % str(bad)] = bad.is_empty()
 
 
 func _place(pos: Vector3) -> void:

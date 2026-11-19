@@ -186,16 +186,74 @@ const PILLARS := [
 ]
 
 
+# 起伏（T-01。6b）：止まり時計の広場（±1m、噴水のまわりは平ら）と旧市民ホール（±0.8m、真ん中はさらに緩やか）
+#  [範囲, 起伏の大きさ（m）, 平らにする所（[Rect2, blend]）, 起伏を小さくする所（[Rect2, 倍率, blend]）]。範囲のはし3mで高さ0へなじませる
+const TERRAIN_PATCHES := [
+	[Rect2(-11, -12, 22, 22), 1.0, [[Rect2(-2.5, -3.5, 5, 5), 1.5]], []],
+	[Rect2(-14, -58, 28, 28), 0.8, [], [[Rect2(-5, -49, 10, 10), 0.5, 3.0]]],
+]
+const TERRAIN_EDGE_BLEND := 3.0
+const BUILDING_SINK := 1.0           # 起伏の上の建物は、これだけ地下へ伸ばす（すき間をなくす）
+
+static var terrains: Array[Terrain] = []   # 今の起伏（ground_y で高さを調べる）
+
+
+# その場所の地面の高さ（起伏の中なら起伏の高さ、外は0）。物を置くとき・出てくる場所に使う
+static func ground_y(x: float, z: float) -> float:
+	for t in terrains:
+		if is_instance_valid(t) and t.area.has_point(Vector2(x, z)):
+			return t.height_at(x, z)
+	return 0.0
+
+
+static func on_ground(p: Vector3) -> Vector3:
+	return Vector3(p.x, p.y + ground_y(p.x, p.z), p.z)
+
+
+static func _in_terrain(pos: Vector3, size: Vector3) -> bool:
+	var r := Rect2(pos.x - size.x * 0.5, pos.z - size.z * 0.5, size.x, size.z)
+	for patch in TERRAIN_PATCHES:
+		if (patch[0] as Rect2).intersects(r):
+			return true
+	return false
+
+
+static func _build_terrains(root: Node3D) -> void:
+	terrains.clear()
+	for patch in TERRAIN_PATCHES:
+		var t := Terrain.new()
+		t.name = "Terrain"
+		t.area = patch[0]
+		t.flat_zones = patch[2]
+		t.scale_zones = patch[3]
+		t.edge_blend = TERRAIN_EDGE_BLEND
+		t.fit_amplitude(patch[1])
+		t.material = WorldMaterials.make("hall_floor" if (patch[0] as Rect2).position.y < -40.0 else "street", Color(0.8, 0.79, 0.74))
+		t.build(root)
+		terrains.append(t)
+		# 起伏の下の受け（すき間から落ちないように）
+		var r: Rect2 = patch[0]
+		_add_box(root, Vector3(r.get_center().x, -Terrain.HOLLOW_MAX - 1.0, r.get_center().y), Vector3(r.size.x, 1.0, r.size.y), WorldMaterials.make("street"), false)
+
+
 # エリアを作って parent の子にする。扉などを返す
 static func build(parent: Node3D) -> Dictionary:
 	var root := Node3D.new()
 	root.name = "World"
 	parent.add_child(root)
+	_build_terrains(root)
 	var kit := RuinKit.new()  # 乱数はシード固定（RuinKit.SEED）
 	for b in BOXES:
 		var pos: Vector3 = b[0]
 		var size: Vector3 = b[1]
 		var kind: String = b[2]
+		var on_terrain := _in_terrain(pos, size)
+		if kind == "GROUND" and on_terrain:
+			continue  # 起伏が地面になる（広場・ホール）
+		if kind != "GROUND" and on_terrain and absf(pos.y - size.y * 0.5) < 0.05:
+			# 起伏の上の建物：下を地下へ伸ばす
+			size = size + Vector3(0, BUILDING_SINK, 0)
+			pos = pos - Vector3(0, BUILDING_SINK * 0.5, 0)
 		var tint := _tint(kind, kit.rng)
 		var body := _add_box(root, pos, size, _material(kind, tint, pos, size, kit.rng), b[3])
 		if kind == "BUILDING" or kind == "OVERPASS" or kind == "OBSTACLE":
@@ -208,12 +266,12 @@ static func build(parent: Node3D) -> Dictionary:
 			if b[4] != F_NONE and b[3] and pos.y - size.y * 0.5 > -1.0:
 				kit.decorate_building(pos, size, -(b[4] as Vector3), 0.0, tint, false)
 	for p in PILLARS:
-		kit.add_pillar(p[0], p[1], p[2], Color.WHITE)
+		kit.add_pillar(on_ground(p[0]), p[1], p[2], Color.WHITE)
 	# 放置された車（W-10）：見た目＋当たり判定（大きいので、ぶつかる・登れる）
 	for c in CARS:
-		add_car(root, kit, c[0], c[1], c[2])
+		add_car(root, kit, on_ground(c[0]), c[1], c[2])
 	for sg in SIGNS:
-		kit.add_sign(sg[0], sg[1], sg[2])
+		kit.add_sign(on_ground(sg[0]), sg[1], sg[2])
 	# 広い街（W-13）：街・川・見晴らしの塔・外枠と、街の飾り・植物（飾りは下の kit・nature に足す）
 	var nature := NatureKit.new()
 	var city := CityBuilder.new()
@@ -223,11 +281,11 @@ static func build(parent: Node3D) -> Dictionary:
 	for a in DECOR_AREAS:
 		nature.scatter_area(a[0], a[1], a[2])
 	for t in TREES:
-		nature.add_tree(t[0], t[1])
+		nature.add_tree(on_ground(t[0]), t[1])
 	for l in FALLEN_LOGS:
-		nature.add_fallen_log(l[0], l[1], l[2])
+		nature.add_fallen_log(on_ground(l[0]), l[1], l[2])
 	for l in STREET_LAMPS:
-		nature.add_street_lamp(l[0], l[1], l[2])
+		nature.add_street_lamp(on_ground(l[0]), l[1], l[2])
 	nature.build(root)
 	for w in INVISIBLE_WALLS:
 		_add_invisible_wall(root, w[0], w[1])
@@ -249,7 +307,7 @@ static func build(parent: Node3D) -> Dictionary:
 	for sp in SIGN_POSTS:
 		var sign := SignPost.new()
 		sign.name = "SignPost"
-		sign.position = sp[0]
+		sign.position = on_ground(sp[0])
 		sign.rotation.y = sp[1]
 		sign.kind = sp[2]
 		sign.text = sp[3]

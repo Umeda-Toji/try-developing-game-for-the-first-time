@@ -23,6 +23,8 @@ const NOISE_RANGE := 0.75        # ノイズの値をこの幅で割って、−
 
 var area := Rect2(-64, -64, 128, 128)   # 起伏を作る範囲（x, z）
 var flat_zones: Array = []      # [Rect2, blend(m)]
+var amplitude := 1.0            # 起伏の強さ（広場 0.25 → ±1m、ホール 0.2 → ±0.8m）
+var edge_blend := 0.0           # 範囲のはしから、この距離で高さ0へなじませる（0＝なじませない）
 var scale_zones: Array = []     # [Rect2, 起伏の倍率, blend(m)]
 var material: Material
 var tiles := 0
@@ -42,7 +44,7 @@ func _init() -> void:
 func height_at(x: float, z: float) -> float:
 	var n := clampf(_noise.get_noise_2d(x, z) / NOISE_RANGE, -1.0, 1.0)
 	var h := n * HILL_MAX if n > 0.0 else n * HOLLOW_MAX
-	return h * mask_at(x, z)
+	return h * amplitude * mask_at(x, z)
 
 
 # 起伏の強さ（0〜1）。平らにする所と、小さくする所の掛け算
@@ -54,6 +56,9 @@ func mask_at(x: float, z: float) -> float:
 	for s in scale_zones:
 		var t := 1.0 - _zone_factor(p, s[0], float(s[2]))   # 中で 1、外で 0
 		m *= lerpf(1.0, float(s[1]), t)
+	if edge_blend > 0.0:
+		var inside := minf(minf(x - area.position.x, area.end.x - x), minf(z - area.position.y, area.end.y - z))
+		m *= smoothstep(0.0, 1.0, clampf(inside / edge_blend, 0.0, 1.0))
 	return m
 
 
@@ -65,6 +70,22 @@ static func _zone_factor(p: Vector2, r: Rect2, blend: float) -> float:
 	if blend <= 0.0:
 		return 0.0 if d <= 0.0 else 1.0
 	return smoothstep(0.0, 1.0, d / blend)
+
+
+# 範囲の中の起伏の大きさが target_m（m）になるように、強さ（amplitude）を決める
+#  （場所によってノイズの波が小さいことがあるので、広場・ホールは決めた大きさにそろえる）
+func fit_amplitude(target_m: float) -> void:
+	amplitude = 1.0
+	var biggest := 0.0
+	var x := area.position.x
+	while x <= area.end.x:
+		var z := area.position.y
+		while z <= area.end.y:
+			biggest = maxf(biggest, absf(height_at(x, z)))
+			z += 0.5
+		x += 0.5
+	if biggest > 0.001:
+		amplitude = target_m / biggest
 
 
 # 形と当たり判定を作る
@@ -80,29 +101,31 @@ func build(parent: Node3D) -> void:
 
 
 func _build_tile(x0: float, z0: float) -> void:
-	var n := int(TILE / STEP) + 1
+	# マスは範囲からはみ出さない（広場・ホールのように小さい範囲もある）
+	var nx := int(minf(TILE, area.end.x - x0) / STEP) + 1
+	var nz := int(minf(TILE, area.end.y - z0) / STEP) + 1
 	var heights := PackedFloat32Array()
-	heights.resize(n * n)
-	for j in n:
-		for i in n:
-			heights[j * n + i] = height_at(x0 + i * STEP, z0 + j * STEP)
+	heights.resize(nx * nz)
+	for j in nz:
+		for i in nx:
+			heights[j * nx + i] = height_at(x0 + i * STEP, z0 + j * STEP)
 	# 見た目
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for j in n:
-		for i in n:
-			var hx0 := heights[j * n + maxi(i - 1, 0)]
-			var hx1 := heights[j * n + mini(i + 1, n - 1)]
-			var hz0 := heights[maxi(j - 1, 0) * n + i]
-			var hz1 := heights[mini(j + 1, n - 1) * n + i]
+	for j in nz:
+		for i in nx:
+			var hx0 := heights[j * nx + maxi(i - 1, 0)]
+			var hx1 := heights[j * nx + mini(i + 1, nx - 1)]
+			var hz0 := heights[maxi(j - 1, 0) * nx + i]
+			var hz1 := heights[mini(j + 1, nz - 1) * nx + i]
 			st.set_normal(Vector3(hx0 - hx1, 2.0 * STEP, hz0 - hz1).normalized())
 			st.set_uv(Vector2(x0 + i * STEP, z0 + j * STEP) * 0.25)
-			st.add_vertex(Vector3(x0 + i * STEP, heights[j * n + i], z0 + j * STEP))
-	for j in n - 1:
-		for i in n - 1:
-			var a := j * n + i
+			st.add_vertex(Vector3(x0 + i * STEP, heights[j * nx + i], z0 + j * STEP))
+	for j in nz - 1:
+		for i in nx - 1:
+			var a := j * nx + i
 			var b := a + 1
-			var c := a + n
+			var c := a + nx
 			var d := c + 1
 			st.add_index(a)
 			st.add_index(b)
@@ -123,13 +146,13 @@ func _build_tile(x0: float, z0: float) -> void:
 	body.set_collision_layer_value(1, true)
 	body.add_to_group("terrain")
 	var shape := HeightMapShape3D.new()
-	shape.map_width = n
-	shape.map_depth = n
+	shape.map_width = nx
+	shape.map_depth = nz
 	shape.map_data = heights
 	var cs := CollisionShape3D.new()
 	cs.shape = shape
 	body.add_child(cs)
-	body.position = Vector3(x0 + TILE * 0.5, 0.0, z0 + TILE * 0.5)
+	body.position = Vector3(x0 + (nx - 1) * STEP * 0.5, 0.0, z0 + (nz - 1) * STEP * 0.5)
 	add_child(body)
 	tiles += 1
 

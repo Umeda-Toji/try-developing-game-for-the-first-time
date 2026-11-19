@@ -219,7 +219,9 @@ func _random_point(center: Vector3, size: Vector2, lane_half: float) -> Vector3:
 	var x := rng.randf_range(-hx, hx)
 	if lane_half > 0.0 and absf(x) < lane_half:
 		x = signf(x if x != 0.0 else 1.0) * rng.randf_range(lane_half, maxf(hx, lane_half + 0.1))
-	return Vector3(center.x + x, center.y, center.z + rng.randf_range(-size.y * 0.5, size.y * 0.5))
+	var px := center.x + x
+	var pz := center.z + rng.randf_range(-size.y * 0.5, size.y * 0.5)
+	return Vector3(px, center.y + WorldBuilder.ground_y(px, pz), pz)  # 起伏（T-01）の上なら、その高さに置く
 
 
 func _add(kind: String, mesh: Mesh, mat: Material, xf: Transform3D, color: Color, dist: float, shadow: bool) -> void:
