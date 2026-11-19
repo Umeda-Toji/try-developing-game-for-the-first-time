@@ -46,7 +46,7 @@
   - A 調整用の文字を隠す ✅ 11/20（F3 ／ SHARE、設定にも。U-10）
   - B 高画質を軽くする ✅ 11/20（影2分割・SSAO/SSIL半分の解像度・フォグを少し粗く。最低59→72fps）
   - C 遊び方の案内 ✅ 11/20（場所ごとのヒント・ポーズの「操作の一覧」。U-11）
-  - D ボスを倒した後のエンディング（短い文章とスタッフロール）
+  - D ボスを倒した後のエンディング ✅ 11/20（黒い画面に文章「外套を返す」→ スタッフロール → ホールから続き。U-12）
 
 ### ステップ4で決まったこと（11/19）
 - 探索の曲＝Contemplation（Joth）。敵に気づかれたら戦闘の曲（60フレーム）、追いかけてくる敵がいなくなって180フレームで探索の曲に戻る
@@ -90,12 +90,12 @@
 
 ---
 
-## 4. 自動テスト（29種類。今は全部合格：346項目、失敗0・エラー0）
+## 4. 自動テスト（30種類。今は全部合格：358項目、失敗0・エラー0）
 `parry_proto` フォルダで：
 `C:\Users\umeji\Desktop\Godot_v4.7.2-stable_win64.exe --path . --headless --fixed-fps 60 -- --autotest`
 の `--autotest` を、CLAUDE.md の一覧のものに変えて全部実行する。
 
-- 街で動くテスト：`--world-test` `--items-test` `--side-enemies-test` `--vista-test` `--save-test` `--map-test` `--sound-test` `--hints-test`（ほかは20m四方の部屋）
+- 街で動くテスト：`--world-test` `--items-test` `--side-enemies-test` `--vista-test` `--save-test` `--map-test` `--sound-test` `--hints-test` `--ending-test`（ほかは20m四方の部屋）
 - 自動テストは、遊んでいる人のセーブ（`user://save.cfg`）と設定（`user://settings.cfg`）を読まない・書かない
 - 軽さの測り方：`-- --world-views --uncapped --high`（または `--low`）。11/20 の値（電源につないで測定）：高画質 平均81〜126fps（最低72）、軽い 平均143〜237fps（最低99）
 - 録画で見る道具：`--map-hold`（地図）、`--settings-hold`（設定の画面）、`--flower-hold`（花の近く）、`--gun-hold`（一人称で撃つ）、`--world-views --keep-hud`（ヒントなどの表示も映す）

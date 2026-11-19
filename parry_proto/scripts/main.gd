@@ -95,16 +95,18 @@ const TEST_SCRIPTS := {
 	"--weapon-test": "res://tests/weapon_test.gd",  # 武器の持ち替え・武器の輪（G-01・G-02）
 	"--gun-test": "res://tests/gun_test.gd",  # 撃つ・構え・反動・リロード（G-03）
 	"--terrain-test": "res://tests/terrain_test.gd",  # 起伏のある地面（T-01・T-02。6a の試し）
-	"--hints-test": "res://tests/hints_test.gd",  # 操作のヒント・操作の一覧（U-11）  # 景色の確認用（テストではない。エリアを順に映す）
+	"--hints-test": "res://tests/hints_test.gd",  # 操作のヒント・操作の一覧（U-11）
+	"--ending-test": "res://tests/ending_test.gd",  # エンディング・スタッフロール・倒した後の街（U-12）  # 景色の確認用（テストではない。エリアを順に映す）
 }
 const TITLE_TEST_FLAG := "--title-test"  # テストのうち、これだけはタイトル画面を出す
-const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test", "--sound-test", "--hints-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
+const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test", "--sound-test", "--hints-test", "--ending-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
 const SKIP_TITLE_KEY := "skip_title"     # リトライのとき true にしておく（読み直した後はタイトルを出さない）
 # タイトル画面の後ろに映す景色（部屋全体を斜め上から。手前にプレイヤー、奥にザコとボス）
 const TITLE_CAMERA_POS := Vector3(-5.0, 3.2, 9.5)
 const TITLE_CAMERA_LOOK_AT := Vector3(1.0, 1.4, -3.0)
 const TITLE_CAMERA_FOV := 60.0
 const RESULT_DELAY_FRAMES := 60  # 勝ち負けが決まってから結果画面を出すまで（倒れる様子を見せる）
+const HALL_RETURN_POS := Vector3(0, 0.1, -42)  # エンディングの後に始める場所（旧市民ホールの中。U-12）
 
 var player: Player
 var enemies: Array[Enemy] = []
@@ -128,6 +130,8 @@ var bgm: Bgm  # BGM（F-07）
 var ambience: Ambience  # 環境音（A-02。エリアのときだけ）
 var weapon_wheel: WeaponWheel  # 武器の輪（G-02）
 var hint_box: HintBox  # 操作のヒント（U-11。エリアのときだけ）
+var ending_screen: EndingScreen  # エンディング（U-12。エリアのときだけ）
+var post_game := false  # 母株を倒した後の街（U-12）：母株はいない・ホールの扉は開いている
 var title_screen: TitleScreen  # タイトル画面（U-06）
 var _hud_layer: CanvasLayer
 var use_world := true      # true：白砂市のエリア（W-01〜）／false：20m四方の部屋（自動テスト用）
@@ -199,6 +203,15 @@ func _ready() -> void:
 		],
 	})
 	enemies.append(boss)
+	# 母株を倒した後（U-12）：母株は出さない。ホールの扉も開けておく（中から出られるように）
+	post_game = use_world and Discoveries.boss_defeated
+	if post_game:
+		enemies.erase(boss)
+		boss.remove_from_group("enemies")
+		boss.queue_free()
+		boss = null
+		if boss_door != null:
+			boss_door.open()
 	if use_world:
 		build_side_enemies(_side_spots)
 	if boss_door != null:
@@ -277,7 +290,7 @@ func _physics_process(_delta: float) -> void:
 		_update_side_enemy_sleep()
 	if not _result_decided:
 		# 同じフレームに両方起きたら、ボス撃破（勝利）を優先する
-		if boss.is_dead():
+		if boss != null and boss.is_dead():
 			_decide_result(true)
 		elif player.is_dead():
 			_decide_result(false)
@@ -285,8 +298,11 @@ func _physics_process(_delta: float) -> void:
 	if _result_wait > 0:
 		_result_wait -= 1
 		if _result_wait == 0:
-			result_screen.show_result(_result_victory)
-			get_tree().paused = true  # ゲームを止める（結果画面だけは動く）
+			if _result_victory and ending_screen != null:
+				_start_ending()
+			else:
+				result_screen.show_result(_result_victory)
+			get_tree().paused = true  # ゲームを止める（結果画面・エンディングだけは動く）
 
 
 func _decide_result(victory: bool) -> void:
@@ -398,6 +414,29 @@ func _build_result_screen() -> void:
 	result_screen.name = "ResultScreen"
 	result_screen.retry_requested.connect(_retry)
 	add_child(result_screen)
+	# エンディング（U-12）：白砂市のエリアだけ。テスト用の部屋は今までどおり「勝利！」の画面
+	if use_world:
+		ending_screen = EndingScreen.new()
+		ending_screen.name = "EndingScreen"
+		ending_screen.finished.connect(_end_ending)
+		add_child(ending_screen)
+
+
+# 母株を倒した（U-12）：倒したことを覚えて保存し（場所はホールの中）、エンディングを出す
+func _start_ending() -> void:
+	Discoveries.boss_defeated = true
+	Discoveries.saved_position = WorldBuilder.on_ground(HALL_RETURN_POS)
+	Discoveries.has_position = true
+	player.safe_position = Discoveries.saved_position
+	Discoveries.autosave()
+	if hint_box != null:
+		hint_box.visible = false
+	ending_screen.open()
+
+
+# スタッフロールが終わった：母株のいない街を、ホールの中から始め直す
+func _end_ending() -> void:
+	_retry()
 
 
 # 最後に保存した場所から始める（セーブ S-01。つづきから・リトライ）
