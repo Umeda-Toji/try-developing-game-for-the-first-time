@@ -81,10 +81,12 @@ const TEST_SCRIPTS := {
 	"--world-views": "res://tests/world_views.gd",
 	"--items-test": "res://tests/items_test.gd",  # 回復・強化アイテム（W-15 ④-2）
 	"--side-enemies-test": "res://tests/side_enemies_test.gd",  # 街の寄り道の敵（W-15 ④-3）
-	"--vista-test": "res://tests/vista_test.gd",  # 眺めのいい場所（W-15 ④-4）  # 景色の確認用（テストではない。エリアを順に映す）
+	"--vista-test": "res://tests/vista_test.gd",  # 眺めのいい場所（W-15 ④-4）
+	"--save-test": "res://tests/save_test.gd",  # セーブ（S-01）
+	"--map-test": "res://tests/map_test.gd",  # 地図（C）  # 景色の確認用（テストではない。エリアを順に映す）
 }
 const TITLE_TEST_FLAG := "--title-test"  # テストのうち、これだけはタイトル画面を出す
-const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
+const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
 const SKIP_TITLE_KEY := "skip_title"     # リトライのとき true にしておく（読み直した後はタイトルを出さない）
 # タイトル画面の後ろに映す景色（部屋全体を斜め上から。手前にプレイヤー、奥にザコとボス）
 const TITLE_CAMERA_POS := Vector3(-5.0, 3.2, 9.5)
@@ -149,6 +151,7 @@ func _ready() -> void:
 	player = _build_player(_spawn("player", Vector3(0, 0.1, 6)))
 	if use_world:
 		player.kill_y = WorldBuilder.KILL_Y
+		apply_saved_position()
 	enemies.append(_build_enemy_kind("zako", _spawn("zako", Vector3(-3, 0.1, -2))))
 	# 重装兵（E-12）：大きくて遅い。予兆が長く一撃が重い。体幹が多く、2回に1回パリィできない攻撃（赤く光る）
 	heavy = _build_enemy_kind("heavy", _spawn("heavy", Vector3(-6, 0.1, -6)))
@@ -274,6 +277,7 @@ func _build_title_screen() -> void:
 	title_screen = TitleScreen.new()
 	title_screen.name = "TitleScreen"
 	title_screen.start_requested.connect(_start_with_difficulty)
+	title_screen.continue_requested.connect(_continue_game)
 	title_screen.quit_requested.connect(quit_game)
 	# タイトル画面の間は、調整用の文字やバーを隠し、景色用のカメラに切り替える
 	# （タイトル中はゲームが止まり _process が動かないので、表示が変わったときに切り替える）
@@ -320,6 +324,10 @@ func _build_pause_menu() -> void:
 	pause_menu.retry_requested.connect(_retry)
 	pause_menu.quit_requested.connect(quit_game)
 	pause_menu.graphics_toggled.connect(toggle_graphics)
+	pause_menu.save_requested.connect(_save_from_menu)
+	pause_menu.save_available = use_world  # セーブ・地図は街（エリア）のときだけ
+	pause_menu.city_map.world_root = get_node_or_null("World")
+	pause_menu.city_map.player = player
 	add_child(pause_menu)
 
 
@@ -348,6 +356,26 @@ func _build_result_screen() -> void:
 	result_screen.name = "ResultScreen"
 	result_screen.retry_requested.connect(_retry)
 	add_child(result_screen)
+
+
+# 最後に保存した場所から始める（セーブ S-01。つづきから・リトライ）
+func apply_saved_position() -> void:
+	if not Discoveries.has_position:
+		return
+	player.global_position = Discoveries.saved_position
+	player.safe_position = Discoveries.saved_position
+	player.reset_physics_interpolation()
+
+
+# タイトルの「つづきから」：セーブを読み込んで、シーンを作り直す（拾った物・倒した敵を消した街になる）
+func _continue_game() -> void:
+	if Discoveries.load_game():
+		_retry()
+
+
+# ポーズメニューの「セーブ」
+func _save_from_menu() -> void:
+	pause_menu.show_saved(Discoveries.save_game())
 
 
 func _retry() -> void:

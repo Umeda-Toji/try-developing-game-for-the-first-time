@@ -743,6 +743,7 @@ func use_heal() -> bool:
 	hp = mini(hp + HEAL_AMOUNT, max_hp)
 	hp_changed.emit(hp, max_hp)
 	_log("回復薬 +%d（残り %d）" % [HEAL_AMOUNT, Discoveries.heals])
+	Discoveries.autosave()
 	return true
 
 

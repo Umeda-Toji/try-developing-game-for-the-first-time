@@ -15,7 +15,8 @@ var frames_left := 0
 
 
 func _ready() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)  # 画面いっぱい（位置と大きさも合わせる）
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	process_mode = Node.PROCESS_MODE_ALWAYS  # 止まっている間も、隠すために動く  # 画面いっぱい（位置と大きさも合わせる）
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label = Label.new()
 	label.name = "Text"
@@ -42,6 +43,10 @@ func show_message(text: String) -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	# ポーズ・タイトル・眺めの間は隠して、時間も進めない（ポーズメニューの文字と重ならないように）
+	visible = not get_tree().paused
+	if not visible:
+		return
 	if frames_left > 0:
 		frames_left -= 1
 	var shown := SHOW_FRAMES - frames_left

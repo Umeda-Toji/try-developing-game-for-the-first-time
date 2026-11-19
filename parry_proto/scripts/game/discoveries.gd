@@ -2,14 +2,20 @@
 # res://scripts/game/discoveries.gd
 #
 # 見つけたもの（W-15。広い街の ④）を覚えておく（オートロード "Discoveries"）
-#  ・リトライ（シーンの作り直し）をしても消えない。ゲームを終了すると消える
+#  ・リトライ（シーンの作り直し）をしても消えない
 #  ・④-1：記録の断片（街に置いた手帳・貼り紙）。初めて読んだときに discovered を出す
-#  ・④-2 以降で、アイテム・寄り道の敵・眺めの場所もここに足す
+#  ・④-2 アイテム、④-3 寄り道の敵、④-4 眺めのいい場所
+#  ・セーブ（S-01。11/19）：見つけるたびに自動で user://save.cfg に保存する。ポーズメニューの「セーブ」でも保存できる
+#    保存するもの：上の全部・回復薬の数・強化の数・難易度・最後に立っていた場所
+#    自動テストのとき（起動に -- の付いた引数があるとき）は保存しない。--save-test だけはテスト用の別のファイルを使う
 extends Node
 
 signal discovered(message: String)   # 画面に短く出す文（scripts/ui/discovery_toast.gd が受け取る）
 
 const HEAL_CARRY_MAX := 3  # 回復薬を持てる数
+const SAVE_PATH := "user://save.cfg"
+const TEST_SAVE_PATH := "user://save_test.cfg"
+const SAVE_TEST_FLAG := "--save-test"
 
 var fragments := {}        # 読んだ記録の断片の番号 → true
 var fragment_total := 0    # 街にある記録の断片の数（CityBuilder が入れる）
@@ -24,6 +30,25 @@ var killed := {}           # 倒した寄り道の敵の番号 → true（リト
 # ④-4 眺めのいい場所
 var vistas := {}           # 見た眺めの番号 → true
 var vista_total := 0       # 街にある眺めのいい場所の数（CityBuilder が入れる）
+# 街にある数（ポーズメニューの「見つけたもの」用。CityBuilder が入れる）
+var heal_total := 0
+var upgrade_total := 0
+var side_total := 0
+# セーブ
+var save_enabled := true   # false のときは保存も読み込みもしない（自動テスト）
+var save_path := SAVE_PATH
+var saved_position := Vector3.ZERO  # 最後に保存した場所（つづきから・リトライで、ここから始める）
+var has_position := false
+
+
+func _ready() -> void:
+	var args := OS.get_cmdline_user_args()
+	if SAVE_TEST_FLAG in args:
+		save_path = TEST_SAVE_PATH
+	else:
+		for a in args:
+			if a.begins_with("--"):
+				save_enabled = false  # 自動テストは、遊んでいる人のセーブを読まない・書かない
 
 
 # 記録の断片を読んだ。初めてなら true を返して、画面に出す
@@ -32,6 +57,7 @@ func find_fragment(id: int) -> bool:
 		return false
 	fragments[id] = true
 	discovered.emit("記録の断片　%d / %d" % [fragments.size(), fragment_total])
+	autosave()
 	return true
 
 
@@ -51,14 +77,36 @@ func take_item(id: int, kind: String) -> void:
 		"attack":
 			attack_ups += 1
 			discovered.emit("攻撃力 +%d%%" % int(round(Player.UPGRADE_ATTACK * 100.0)))
+	autosave()
+
+
+# 寄り道の敵を倒した
+func kill_side_enemy(id: int) -> void:
+	killed[id] = true
+	autosave()
 
 
 # 眺めのいい場所を見た（お知らせは、映し終わったときに VistaDirector が出す）
 func see_vista(id: int) -> void:
 	vistas[id] = true
+	autosave()
 
 
-# すべて忘れる（テスト用）
+# ポーズメニューに出す「見つけたもの」の文（B。11/19）
+func summary_text() -> String:
+	var ups := hp_ups + stamina_ups + attack_ups
+	var heals_found := picked.size() - ups
+	var lines: Array[String] = [
+		"記録の断片　%d / %d" % [fragments.size(), fragment_total],
+		"強化　%d / %d（HP %d・スタミナ %d・攻撃 %d）" % [ups, upgrade_total, hp_ups, stamina_ups, attack_ups],
+		"回復薬　%d / %d（いま %d つ持っている）" % [heals_found, heal_total, heals],
+		"寄り道の敵　%d / %d" % [killed.size(), side_total],
+		"眺めのいい場所　%d / %d" % [vistas.size(), vista_total],
+	]
+	return "\n".join(lines)
+
+
+# すべて忘れる（はじめから・テスト用）。セーブのファイルは消さない
 func reset() -> void:
 	fragments.clear()
 	picked.clear()
@@ -68,3 +116,75 @@ func reset() -> void:
 	attack_ups = 0
 	killed.clear()
 	vistas.clear()
+	has_position = false
+
+
+# =========================================================
+# セーブ（S-01）
+# =========================================================
+# 自動で保存する（見つけたとき・回復薬を使ったとき）
+func autosave() -> void:
+	if save_enabled:
+		save_game()
+
+
+# 保存する。場所はプレイヤーが最後に立っていた所（水の中や空中ではない）
+func save_game() -> bool:
+	if not save_enabled:
+		return false
+	var player := get_tree().get_first_node_in_group("player") as Player
+	if player != null:
+		saved_position = player.safe_position
+		has_position = true
+	var cfg := ConfigFile.new()
+	cfg.set_value("found", "fragments", fragments.keys())
+	cfg.set_value("found", "picked", picked.keys())
+	cfg.set_value("found", "killed", killed.keys())
+	cfg.set_value("found", "vistas", vistas.keys())
+	cfg.set_value("player", "heals", heals)
+	cfg.set_value("player", "hp_ups", hp_ups)
+	cfg.set_value("player", "stamina_ups", stamina_ups)
+	cfg.set_value("player", "attack_ups", attack_ups)
+	cfg.set_value("player", "difficulty", Difficulty.current)
+	if has_position:
+		cfg.set_value("player", "position", saved_position)
+	return cfg.save(save_path) == OK
+
+
+func has_save() -> bool:
+	return save_enabled and FileAccess.file_exists(save_path)
+
+
+# 読み込む。読めたら true（難易度も戻す）
+func load_game() -> bool:
+	if not has_save():
+		return false
+	var cfg := ConfigFile.new()
+	if cfg.load(save_path) != OK:
+		return false
+	reset()
+	for id in cfg.get_value("found", "fragments", []):
+		fragments[int(id)] = true
+	for id in cfg.get_value("found", "picked", []):
+		picked[int(id)] = true
+	for id in cfg.get_value("found", "killed", []):
+		killed[int(id)] = true
+	for id in cfg.get_value("found", "vistas", []):
+		vistas[int(id)] = true
+	heals = int(cfg.get_value("player", "heals", 0))
+	hp_ups = int(cfg.get_value("player", "hp_ups", 0))
+	stamina_ups = int(cfg.get_value("player", "stamina_ups", 0))
+	attack_ups = int(cfg.get_value("player", "attack_ups", 0))
+	var diff: String = cfg.get_value("player", "difficulty", Difficulty.current)
+	if Difficulty.SETTINGS.has(diff):
+		Difficulty.current = diff
+	has_position = cfg.has_section_key("player", "position")
+	if has_position:
+		saved_position = cfg.get_value("player", "position")
+	return true
+
+
+func delete_save() -> void:
+	if FileAccess.file_exists(save_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
+	reset()

@@ -14,6 +14,7 @@ extends CanvasLayer
 
 signal start_requested(difficulty: String)  # 選んだ難易度（Difficulty.EASY など）
 signal quit_requested
+signal continue_requested   # 「つづきから」（セーブ S-01）
 
 # ---- 見た目の数値 ----
 const GAME_TITLE := "ParryProto"            # 仮の名前。決まったらここを変える
@@ -34,6 +35,11 @@ var credits_open := false
 var difficulty_open := false
 var difficulty_buttons := {}   # 難易度 → ボタン
 var start_button: Button
+var continue_button: Button
+var confirm_open := false     # 「はじめから」の確かめる画面が出ているか
+var confirm_yes: Button
+var confirm_no: Button
+var _confirm: Control
 var credits_button: Button
 var quit_button: Button
 var credits_panel: CreditsPanel
@@ -54,7 +60,9 @@ func _process(_delta: float) -> void:
 	if not is_open:
 		return
 	var back := Input.is_action_just_pressed("pause") or Input.is_action_just_pressed("ui_cancel")
-	if credits_open and back:
+	if confirm_open and back:
+		close_confirm()
+	elif credits_open and back:
 		close_credits()
 	elif difficulty_open and back:
 		close_difficulty()
@@ -65,10 +73,16 @@ func open() -> void:
 	visible = true
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	start_button.grab_focus()  # パッドの×ですぐ始められるように
+	# セーブがあれば「つづきから」を出して、最初に選んでおく。「はじめる」は「はじめから」になる
+	var saved := Discoveries.has_save()
+	continue_button.visible = saved
+	start_button.text = "はじめから" if saved else "はじめる"
+	(continue_button if saved else start_button).grab_focus()  # パッドの×ですぐ始められるように
 
 
 func close() -> void:
+	if confirm_open:
+		close_confirm()
 	if credits_open:
 		close_credits()
 	if difficulty_open:
@@ -77,6 +91,38 @@ func close() -> void:
 	visible = false
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+# 「はじめる」／「はじめから」：セーブがあるときは、消してよいか確かめる
+func _on_start_pressed() -> void:
+	if Discoveries.has_save():
+		open_confirm()
+	else:
+		open_difficulty()
+
+
+func open_confirm() -> void:
+	confirm_open = true
+	_menu.visible = false
+	_confirm.visible = true
+	confirm_no.grab_focus()  # まちがえて消さないように、「いいえ」を選んでおく
+
+
+func close_confirm() -> void:
+	confirm_open = false
+	_confirm.visible = false
+	_menu.visible = true
+	start_button.grab_focus()
+
+
+# 「はい」：セーブを消して、難易度を選ぶ
+func _confirm_new_game() -> void:
+	Discoveries.delete_save()
+	confirm_open = false
+	_confirm.visible = false
+	continue_button.visible = false
+	start_button.text = "はじめる"
+	open_difficulty()
 
 
 # 難易度を選ぶ画面
@@ -149,7 +195,9 @@ func _build() -> void:
 	gap.custom_minimum_size = Vector2(0, 28)
 	box.add_child(gap)
 
-	start_button = _make_button("はじめる", open_difficulty)
+	continue_button = _make_button("つづきから", func() -> void: continue_requested.emit())
+	box.add_child(continue_button)
+	start_button = _make_button("はじめる", _on_start_pressed)
 	credits_button = _make_button("クレジット", open_credits)
 	quit_button = _make_button("終了", func() -> void: quit_requested.emit())
 	for b in [start_button, credits_button, quit_button]:
@@ -167,6 +215,7 @@ func _build() -> void:
 	box.add_child(hint)
 
 	_build_difficulty_menu()
+	_build_confirm()
 
 	credits_panel = CreditsPanel.new()
 	credits_panel.back_pressed.connect(close_credits)
@@ -211,6 +260,30 @@ func _build_difficulty_menu() -> void:
 	back.custom_minimum_size = Vector2(BUTTON_SIZE.x, 44)
 	back.add_theme_font_size_override("font_size", 18)
 	box.add_child(back)
+
+
+# 「はじめから」の確かめる画面
+func _build_confirm() -> void:
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.visible = false
+	add_child(center)
+	_confirm = center
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	center.add_child(box)
+	var head := Label.new()
+	head.text = "セーブを消して、はじめから遊びますか？\n（見つけたもの・強化は、すべてなくなります）"
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	head.add_theme_font_size_override("font_size", 26)
+	head.add_theme_color_override("font_color", COLOR_TITLE)
+	head.add_theme_color_override("font_outline_color", COLOR_TITLE_OUTLINE)
+	head.add_theme_constant_override("outline_size", 8)
+	box.add_child(head)
+	confirm_yes = _make_button("はい（セーブを消す）", _confirm_new_game)
+	confirm_no = _make_button("いいえ", close_confirm)
+	box.add_child(confirm_yes)
+	box.add_child(confirm_no)
 
 
 func _make_button(text: String, on_pressed: Callable) -> Button:

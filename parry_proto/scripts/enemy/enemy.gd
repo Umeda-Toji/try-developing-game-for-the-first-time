@@ -455,7 +455,7 @@ func _die() -> void:
 	remove_from_group("enemies")
 	_log("%s を倒した" % display_name)
 	if side_id >= 0:
-		Discoveries.killed[side_id] = true  # 一度倒した寄り道の敵は、リトライしても戻らない
+		Discoveries.kill_side_enemy(side_id)  # 一度倒した寄り道の敵は、リトライしても戻らない（自動で保存）
 
 
 func _on_hitbox_hit(target_hurtbox: Hurtbox) -> void:

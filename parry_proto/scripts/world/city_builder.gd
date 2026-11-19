@@ -430,6 +430,8 @@ func _build_pickups(root: Node3D) -> void:
 		_add_pickup(root, "heal", id, ground.pop_back())
 		id += 1
 	stats["pickups"] = id
+	Discoveries.heal_total = HEAL_ITEMS
+	Discoveries.upgrade_total = UPGRADE_ITEMS.size()
 
 
 func _add_pickup(root: Node3D, kind: String, id: int, pos: Vector3) -> void:
@@ -451,6 +453,7 @@ func _build_side_spots() -> void:
 		var c := _parks[_parks.size() - 1 - i].get_center()
 		_add_side_group(Vector3(c.x, 0, c.y), PARK_GROUPS[i])
 	stats["side_enemies"] = side_spots.size()
+	Discoveries.side_total = side_spots.size()
 
 
 func _add_side_group(center: Vector3, kinds: Array) -> void:
