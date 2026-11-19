@@ -20,7 +20,7 @@
 | `72b9a7c` | ロックオンの切り替え（押すと次に近い敵、45フレーム長押しで解除） | L-01 |
 | `27c0252` | 敵の頭の花（つぼみ → 白／赤に咲く、フェイントは半分、倒れると満開、ボスは第2形態で肩・背中にも） | F-01 |
 
-- GitHub：https://github.com/Umeda-Toji/try-developing-game-for-the-first-time.git に、花（`27c0252`）とこのメモまで、すべてプッシュ済み（11/19）
+- GitHub：https://github.com/Umeda-Toji/try-developing-game-for-the-first-time.git に、起伏（`0af7774`）まで、すべてプッシュ済み（11/19）。NEXT_FEATURES のステップ0〜6はすべて完了
 - `.exe`：`build/ParryProto.exe`（花まで入った最新のもの）
 
 ---
