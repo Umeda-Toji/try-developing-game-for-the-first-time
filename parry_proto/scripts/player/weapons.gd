@@ -42,7 +42,13 @@ const MUZZLE_RATIO := 0.7                      # 握る所から銃口までの�
 const RECOIL := {"tiny": [0.006, 0.003], "small": [0.012, 0.004], "large": [0.05, 0.012]}
 const POSTURE_RATIO := 0.5                     # 体幹は、ダメージのこの割合だけ削る
 const PROJECTILE_HIT_RADIUS := 0.35            # 胞子玉と弾の線がこれより近いと、胞子玉が消える（m）
-const TRACER_FRAMES := 3                       # 弾の光の線を見せる長さ
+const TRACER_FRAMES := 10                      # 弾の光の線を見せる長さ（G-07。11/19 3 → 10）
+const TRACER_WIDTH := 0.05                     # 弾の光の線の太さ（m）
+const IMPACT_FRAMES := 8                       # 当たった所の小さな火花を見せる長さ
+# 一人称で構えた銃の位置（カメラから見て：右、下、前。m）と、反動で銃が跳ねる量
+const VIEW_OFFSET := Vector3(0.2, -0.17, -0.5)
+const VIEW_KICK_BACK := 0.06
+const VIEW_KICK_FRAMES := 6
 const HIT_MASK := 1 | 16                       # 地形（層1）と敵の被弾判定（層5）
 
 var current := "sword"
@@ -58,7 +64,9 @@ var _hand_idx := -1
 var _back_idx := -1
 var cooldown := 0           # 次に撃てるまでのフレーム
 var reload_left := 0        # リロードの残りフレーム（0＝リロードしていない）
-var _tracers: Array = []    # [光の線, 残りフレーム]
+var _tracers: Array = []    # [光の線, 残りフレーム, 最初のフレーム数]
+var first_person := false   # 一人称で構えている（目の前に銃を構える。体と背中の剣は隠す）
+var _kick := 0              # 反動で銃が跳ねている残りフレーム
 
 
 # body：プレイヤー。model：プレイヤーの見た目（CharacterModel）
@@ -136,12 +144,16 @@ func follow() -> void:
 	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
 	var right := Vector3.UP.cross(fwd).normalized()
 	var s := _skel.global_basis.get_scale().x
-	if _hand_idx != -1 and shown != "sword":
+	if first_person and shown != "sword":
+		_follow_view()
+	elif _hand_idx != -1 and shown != "sword":
 		var hand := _skel.global_transform * _skel.get_bone_global_pose(_hand_idx).origin
 		var pos := hand + (right * HAND_OFFSET.x + Vector3.UP * HAND_OFFSET.y + fwd * HAND_OFFSET.z) * s
 		# 素材の向き：銃身 +X → 体の前、上 +Z → 上、横 +Y → 左
 		var g: Node3D = _guns[shown]
 		g.global_transform = Transform3D(Basis(fwd, -right, Vector3.UP).scaled(Vector3.ONE * float(g.get_meta("scale"))), pos)
+	if _back_sword != null:
+		_back_sword.visible = shown != "sword" and not first_person
 	if _back_idx != -1 and _back_sword != null and shown != "sword":
 		var back := _skel.global_transform * _skel.get_bone_global_pose(_back_idx).origin
 		# 背中に斜めに負う：剣の向き（+Y）を、右上から左下へ
@@ -198,9 +210,8 @@ func muzzle_position() -> Vector3:
 	if not is_gun():
 		return global_position
 	var g: Node3D = _guns[current]
-	var fwd := -_body.global_basis.z
-	fwd.y = 0.0
-	return g.global_position + fwd.normalized() * float(GUNS[current]["length"]) * MUZZLE_RATIO
+	# 銃身の向き（+X）の先が銃口
+	return g.global_position + g.global_basis.x.normalized() * float(GUNS[current]["length"]) * MUZZLE_RATIO
 
 
 # 撃つ。aim_point：狙う所（世界）。aiming：構えているか。attack_mult：攻撃力の強化。exclude：当てない物の RID
@@ -242,9 +253,13 @@ func fire(aim_point: Vector3, aiming: bool, attack_mult: float, exclude: Array) 
 				if r == Combat.HitResult.HIT:
 					info["hits"] = int(info["hits"]) + 1
 					(info["enemies"] as Array).append(ent)
-		_add_tracer(from, end)
+		if GameSettings.tracers:
+			_add_tracer(from, end)
+			if not hit.is_empty():
+				_add_impact(end)
 		info["pellets"] = int(info["pellets"]) + 1
 	info["shot"] = true
+	_kick = VIEW_KICK_FRAMES
 	GameFeel.play_sound("shot_" + current)
 	fired.emit(info)
 	return info
@@ -274,27 +289,79 @@ func _add_tracer(from: Vector3, to: Vector3) -> void:
 	if length < 0.05:
 		return
 	var mi := MeshInstance3D.new()
+	mi.name = "Tracer"
+	mi.add_to_group("tracers")
 	var box := BoxMesh.new()
-	box.size = Vector3(0.015, 0.015, length)
+	box.size = Vector3(TRACER_WIDTH, TRACER_WIDTH, length)
 	mi.mesh = box
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(1.0, 0.85, 0.5)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_color = Color(1.0, 0.8, 0.45, 0.9)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.75, 0.4)
+	mat.emission_energy_multiplier = 3.0
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	get_tree().current_scene.add_child(mi)
 	var dir := (to - from) / length
 	var up := Vector3.UP if absf(dir.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
 	mi.global_transform = Transform3D(Basis.looking_at(dir, up), (from + to) * 0.5)
-	_tracers.append([mi, TRACER_FRAMES])
+	_tracers.append([mi, TRACER_FRAMES, TRACER_FRAMES])
 
 
+# 当たった所の小さな火花（光る玉が小さくなって消える）
+func _add_impact(pos: Vector3) -> void:
+	var mi := MeshInstance3D.new()
+	mi.name = "Impact"
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.08
+	sphere.height = 0.16
+	sphere.radial_segments = 8
+	sphere.rings = 4
+	mi.mesh = sphere
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_color = Color(1.0, 0.85, 0.5, 1.0)
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	get_tree().current_scene.add_child(mi)
+	mi.global_position = pos
+	_tracers.append([mi, IMPACT_FRAMES, IMPACT_FRAMES])
+
+
+# 光の線と火花：だんだん薄くなって消える
 func _update_tracers() -> void:
 	for t in _tracers.duplicate():
 		t[1] = int(t[1]) - 1
-		if int(t[1]) <= 0:
-			(t[0] as Node).queue_free()
+		var node := t[0] as GeometryInstance3D
+		if int(t[1]) <= 0 or not is_instance_valid(node):
+			if is_instance_valid(node):
+				node.queue_free()
 			_tracers.erase(t)
+			continue
+		var mat := node.material_override as StandardMaterial3D
+		if mat != null:
+			mat.albedo_color.a = 0.9 * float(t[1]) / float(t[2])
+
+
+# 一人称：カメラの右下に、銃身をカメラの前へ向けて構える。撃つと少し後ろへ跳ねて戻る
+func _follow_view() -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var k := float(_kick) / float(VIEW_KICK_FRAMES)
+	if _kick > 0:
+		_kick -= 1
+	var cb := cam.global_basis.orthonormalized()
+	var off := VIEW_OFFSET + Vector3(0, 0, VIEW_KICK_BACK * k)
+	var g: Node3D = _guns[shown]
+	# 素材の向き：銃身 +X → カメラの前（−Z）、上 +Z → カメラの上（+Y）、横 +Y → カメラの左（−X）
+	var basis := Basis(-cb.z, -cb.x, cb.y).rotated(cb.x, 0.08 * k)
+	g.global_transform = Transform3D(basis.scaled(Vector3.ONE * float(g.get_meta("scale"))), cam.global_transform * off)
 
 
 func _apply_visibility() -> void:

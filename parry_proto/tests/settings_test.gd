@@ -38,7 +38,7 @@ func _physics_process(_delta: float) -> void:
 		gs.volumes.values().all(func(v): return is_equal_approx(v, 1.0))
 		and is_equal_approx(gs.sens["mouse"], 1.0) and is_equal_approx(gs.sens["pad"], 1.0)
 		and is_equal_approx(gs.sens["mouse_aim"], 0.6) and is_equal_approx(gs.sens["pad_aim"], 0.6)
-		and not gs.invert_x and not gs.invert_y and gs.aim_assist)
+		and not gs.invert_x and not gs.invert_y and gs.aim_assist and gs.tracers)
 
 	# ポーズメニューから開く
 	var pm: PauseMenu = _main.pause_menu

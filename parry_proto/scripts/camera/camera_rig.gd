@@ -21,12 +21,14 @@ var _shake_total := 1
 @onready var cam: Camera3D = $SpringArm3D/Camera3D
 
 
-# 構え（G-03）：肩越しに寄ってズーム
+# 構え（G-03・G-06）：一人称（主人公の目の位置）へ移ってズーム（11/19 肩越し → 一人称に変更）
 const AIM_BLEND_FRAMES := 10
-const AIM_LENGTH := 1.6
+const AIM_LENGTH := 0.0             # 構えたときのカメラの距離（0＝目の位置）
 const AIM_FOV := 45.0
-const AIM_SHOULDER := 0.55          # 右肩へのずらし（m）
+const AIM_SHOULDER := 0.0           # 右肩へのずらし（一人称では0）
+const FIRST_PERSON_FROM := 0.7      # aim_blend がこれを超えたら一人称（体を隠し、銃を目の前に構える）
 var aim_blend := 0.0                # 0＝ふつう、1＝構え
+var _follow_pos := Vector3.ZERO     # 三人称のときに追いかける位置（体の少し上）
 var _normal_length := 4.5
 var _normal_fov := 70.0
 var _last_pad := false              # 最後にカメラを動かしたのがパッドか（狙いの補助はパッドだけ）
@@ -66,7 +68,11 @@ func apply_look(amount: Vector2, is_mouse: bool, aiming: bool = false) -> void:
 func _physics_process(delta: float) -> void:
 	if target == null:
 		return
-	global_position = global_position.lerp(target.global_position + Vector3(0, 1.4, 0), follow_lerp)
+	if _follow_pos == Vector3.ZERO:
+		_follow_pos = target.global_position + Vector3(0, 1.4, 0)
+	_follow_pos = _follow_pos.lerp(target.global_position + Vector3(0, 1.4, 0), follow_lerp)
+	# 構え：三人称の位置から、主人公の目の位置へ近づける
+	global_position = _follow_pos.lerp(target.eye_position(), aim_blend) if aim_blend > 0.0 else _follow_pos
 
 	var lt := target.lock_target
 	if lt != null and is_instance_valid(lt):
@@ -89,6 +95,8 @@ func _physics_process(delta: float) -> void:
 	cam.fov = lerpf(_normal_fov, AIM_FOV, aim_blend)
 	spring.position.x = AIM_SHOULDER * aim_blend
 	rotation = Vector3(pitch, yaw, 0.0)
+	# 一人称の間は、主人公の体と頭を隠す（銃は Weapons が目の前に出す）
+	target.set_first_person(is_first_person())
 
 	# 揺れ：残りフレームに比例して弱まる
 	if _shake_frames > 0:
@@ -99,6 +107,10 @@ func _physics_process(delta: float) -> void:
 	else:
 		cam.h_offset = 0.0
 		cam.v_offset = 0.0
+
+
+func is_first_person() -> bool:
+	return aim_blend >= FIRST_PERSON_FROM
 
 
 func _is_aiming() -> bool:

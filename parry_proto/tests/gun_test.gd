@@ -77,9 +77,17 @@ func _physics_process(_delta: float) -> void:
 		1:  # 60フレーム撃ち続ける
 			if _t == 3:
 				_f["rig_pitch_after"] = (_main.get_node("CameraRig") as Node3D).get("pitch")
+				var tr := get_tree().get_nodes_in_group("tracers")
+				var thick := false
+				for n in tr:
+					thick = thick or ((n as MeshInstance3D).mesh as BoxMesh).size.x >= Weapons.TRACER_WIDTH - 0.001
+				_results["撃つと弾の通り道が光る（太さ %.2f m）" % Weapons.TRACER_WIDTH] = not tr.is_empty() and thick
+			if _t == 8:
+				_f["tracer_count"] = get_tree().get_nodes_in_group("tracers").size()
 			if _t == 60:
 				Input.action_release("fire")
 			if _t == 62:
+				_results["弾の光は %d フレームほど残る（6フレーム目に %d 本）" % [Weapons.TRACER_FRAMES, int(_f["tracer_count"])]] = int(_f["tracer_count"]) >= 1
 				var hits := int(_f["hp"]) - _zako.hp
 				_results["60フレームで %d 発（6フレームに1発）" % _shots] = _shots >= 9 and _shots <= 11
 				_results["敵に当たり、HP は2ずつ減る（%d 減った）" % hits] = hits == _shots * 2
@@ -105,6 +113,15 @@ func _physics_process(_delta: float) -> void:
 			if _t == 90:
 				Input.action_release("fire")
 				_results["壁の向こうの敵には当たらない"] = _zako.hp == int(_f["hp"])
+				# 弾道の表示をオフにすると、光の線が出ない
+				GameSettings.tracers = false
+				for n in get_tree().get_nodes_in_group("tracers"):
+					n.remove_from_group("tracers")
+				_w.ammo("ar")["mag"] = 30
+				_w.cooldown = 0
+				_w.fire(_zako.global_position + Vector3.UP, false, 1.0, [_p.get_rid()])
+				_results["設定で弾道の表示をオフにすると、光の線が出ない"] = get_tree().get_nodes_in_group("tracers").is_empty()
+				GameSettings.tracers = true
 				(_f["wall"] as Node).queue_free()
 				# 弾切れ
 				_w.ammo("ar")["mag"] = 0
@@ -142,9 +159,23 @@ func _physics_process(_delta: float) -> void:
 			if _t == 14:
 				var spring := rig.get_node("SpringArm3D") as SpringArm3D
 				var cam := rig.get_node("SpringArm3D/Camera3D") as Camera3D
-				_results["構えると、カメラが寄って（%.1f m）ズームする（視野 %.0f°）" % [spring.spring_length, cam.fov]] = (
-					_p.aiming and absf(spring.spring_length - 1.6) < 0.05 and absf(cam.fov - 45.0) < 0.5)
+				var eye := _p.eye_position()
+				_results["構えると一人称：カメラが目の位置（%.2f m）、ズーム（視野 %.0f°）" % [cam.global_position.distance_to(eye), cam.fov]] = (
+					_p.aiming and spring.spring_length < 0.05 and cam.global_position.distance_to(eye) < 0.25 and absf(cam.fov - 45.0) < 0.5)
+				var gun: Node3D = _w._guns["ar"]
+				var to_gun := gun.global_position - cam.global_position
+				_results["一人称では体と頭が見えず、銃は目の前の右下に構える（%.2f m）" % to_gun.length()] = (
+					not _p.model.visible and gun.visible and to_gun.length() < 1.0
+					and to_gun.normalized().dot(-cam.global_basis.z) > 0.6 and to_gun.dot(cam.global_basis.x) > 0.0 and to_gun.dot(cam.global_basis.y) < 0.0
+					and gun.global_basis.x.normalized().dot(-cam.global_basis.z) > 0.95)
 				Input.action_press("move_forward")
+				if "--gun-hold" in OS.get_cmdline_user_args():
+					# 録画で見るとき：構えたまま撃つ（一人称と弾の光を見る）
+					_p.lock_target = null
+					Input.action_press("fire")
+					print("EVT ads ", Engine.get_frames_drawn())
+			if _t == 22 and "--gun-hold" in OS.get_cmdline_user_args():
+				Input.action_release("fire")
 			if _t == 30:
 				var v := Vector2(_p.velocity.x, _p.velocity.z).length()
 				_results["構えている間は、歩く速さが半分（%.1f m/秒）" % v] = absf(v - Player.MOVE_SPEED * Player.AIM_WALK_MULT) < 0.2
@@ -154,6 +185,8 @@ func _physics_process(_delta: float) -> void:
 				Input.action_release("dodge")
 			if _t == 34:
 				_results["回避すると構えを解く（構えのボタンを押したままでも）"] = not _p.aiming
+			if _t == 50:
+				_results["構えを解くと三人称に戻る（体が見え、カメラが離れる）"] = _p.model.visible and (rig.get_node("SpringArm3D") as SpringArm3D).spring_length > 4.0
 			if _t == 60:
 				_results["回避が終わっても、構えのボタンを離すまで構えない"] = not _p.aiming
 				Input.action_release("aim")

@@ -58,6 +58,8 @@ const CHARGE_MAX_MULTIPLIER := 2.0 # 最大まで溜めたときのダメージ�
 
 # ソフトロック（P-17）：ロックオンしていなくても、攻撃の瞬間に近くの敵を向く
 const AIM_WALK_MULT := 0.5               # 構えている間の歩く速さ（G-03）
+const EYE_UP := 0.12                     # 頭の骨（首の付け根）から目の高さへ（m。一人称 G-06）
+const EYE_FORWARD := 0.12                # 頭の骨から目の前へ（m）
 const FLOOR_MAX_ANGLE_DEG := 40.0        # 歩いて登れる坂の角度（T-02。11/19 決定）
 const FLOOR_SNAP := 0.5                  # 坂を下るとき、地面に吸い付く距離（m）
 const AIM_RAY_LENGTH := 200.0            # 画面の真ん中から狙う所を探す長さ（m）
@@ -826,6 +828,25 @@ func aim_point() -> Vector3:
 	q.collide_with_areas = true
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	return to if hit.is_empty() else hit["position"]
+
+
+# 目の位置（一人称のカメラ。頭の骨の少し上・少し前）
+func eye_position() -> Vector3:
+	var skel := model.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skel == null:
+		return global_position + Vector3.UP * 1.6
+	var idx := skel.find_bone("Head")
+	var s := skel.global_basis.get_scale().x
+	var head := skel.global_transform * skel.get_bone_global_pose(idx).origin
+	return head + Vector3.UP * EYE_UP * s + _camera_forward() * EYE_FORWARD * s
+
+
+# 一人称の間は、体と頭（と背中の剣）を見せない
+func set_first_person(on: bool) -> void:
+	if model.visible == on:
+		model.visible = not on
+	if weapons != null:
+		weapons.first_person = on
 
 
 func _camera_forward() -> Vector3:
