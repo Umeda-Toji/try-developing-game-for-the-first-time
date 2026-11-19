@@ -13,7 +13,8 @@ const SHOW_DISTANCE := 4.0       # この距離まで近づくと文章が出る
 const FADE_SPEED := 4.0          # 出る・消える速さ（1秒あたりの不透明度の変化）
 const TEXT_HEIGHT := 2.3         # 文章を浮かべる高さ（m）
 const FONT_SIZE := 48
-const PIXEL_SIZE := 0.006        # 文字の大きさ（1ピクセルあたりの m）
+const PIXEL_SIZE := 0.0009       # 文字の大きさ。画面の上での大きさ（FIXED_SIZE なので、近くても遠くても同じ大きさ。11/20 小さくした）
+const FIXED_SIZE := true         # カメラとの距離で大きさを変えない（前は近いと画面を大きく隠していた）
 const TEXT_WIDTH := 900.0        # 1行の幅（ピクセル）。これを超えると折り返す
 const TEXT_COLOR := Color(0.95, 0.93, 0.86)
 const MOTE_HEIGHT := 1.1         # 綿毛を浮かべる高さ（m）
@@ -36,6 +37,7 @@ func _ready() -> void:
 	label.text = text
 	label.font_size = FONT_SIZE
 	label.pixel_size = PIXEL_SIZE
+	label.fixed_size = FIXED_SIZE
 	label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY  # 日本語は単語の区切りがないので、どこでも折り返す
 	label.width = TEXT_WIDTH
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED   # いつもカメラの方を向く
