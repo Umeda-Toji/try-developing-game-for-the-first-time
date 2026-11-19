@@ -41,6 +41,7 @@ Quaternius（https://quaternius.com）
 ・Universal Animation Library ／ Universal Animation Library 2（アニメーション、ザコのマネキン）
 ・LowPoly Medieval Weapons（剣・ハンマー・短剣）
 ・Stylized Nature MegaKit（敵の頭の花：Petal_1〜5）
+・Ultimate Gun Pack（銃：AssaultRifle_1 ／ SubmachineGun_1 ／ Shotgun_1）
 ライセンス：CC0 1.0（パブリックドメイン）。表記は必須ではないが、感謝を込めて記載
 """
 

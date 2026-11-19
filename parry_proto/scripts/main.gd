@@ -91,7 +91,8 @@ const TEST_SCRIPTS := {
 	"--settings-test": "res://tests/settings_test.gd",  # 設定（O-01）
 	"--lockon-test": "res://tests/lockon_test.gd",  # ロックオンの切り替え（L-01）
 	"--flower-test": "res://tests/flower_test.gd",  # 敵の頭の花（F-01）
-	"--sound-test": "res://tests/sound_test.gd",  # 探索の曲・環境音・花の音（A-01〜A-03）  # 景色の確認用（テストではない。エリアを順に映す）
+	"--sound-test": "res://tests/sound_test.gd",  # 探索の曲・環境音・花の音（A-01〜A-03）
+	"--weapon-test": "res://tests/weapon_test.gd",  # 武器の持ち替え・武器の輪（G-01・G-02）  # 景色の確認用（テストではない。エリアを順に映す）
 }
 const TITLE_TEST_FLAG := "--title-test"  # テストのうち、これだけはタイトル画面を出す
 const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test", "--sound-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
@@ -122,6 +123,7 @@ var hit_sparks: HitSparks  # ヒット・パリィ・ブレイクの火花（F-0
 var sfx: Sfx  # 効果音（F-05）
 var bgm: Bgm  # BGM（F-07）
 var ambience: Ambience  # 環境音（A-02。エリアのときだけ）
+var weapon_wheel: WeaponWheel  # 武器の輪（G-02）
 var title_screen: TitleScreen  # タイトル画面（U-06）
 var _hud_layer: CanvasLayer
 var use_world := true      # true：白砂市のエリア（W-01〜）／false：20m四方の部屋（自動テスト用）
@@ -158,6 +160,7 @@ func _ready() -> void:
 	sfx.name = "Sfx"
 	add_child(sfx)
 	player = _build_player(_spawn("player", Vector3(0, 0.1, 6)))
+	player.wheel_requested.connect(_open_weapon_wheel)
 	if use_world:
 		player.kill_y = WorldBuilder.KILL_Y
 		apply_saved_position()
@@ -368,7 +371,16 @@ func toggle_graphics() -> void:
 
 
 # ポーズしてよいか：勝ち負けが決まった後や、終了の途中はポーズしない
+# 武器の輪を開く（G-02）。開いている間は、プレイヤーは動かない
+func _open_weapon_wheel(hold_mode: bool) -> void:
+	if weapon_wheel == null or weapon_wheel.is_open or player.is_dead():
+		return
+	weapon_wheel.open(player.weapons.current, hold_mode)
+
+
 func can_pause() -> bool:
+	if weapon_wheel != null and weapon_wheel.is_open:
+		return false
 	return not _result_decided and not _quitting and not title_screen.is_open and not (vista_director != null and vista_director.active)
 
 
@@ -438,6 +450,13 @@ func _setup_input_map() -> void:
 	_add_action("retry", [_key(KEY_R), _joy(JOY_BUTTON_A)])  # 結果画面でのリトライ：R ／ ×
 	_add_action("pause", [_key(KEY_ESCAPE), _joy(JOY_BUTTON_START)])  # ポーズ：Esc ／ OPTIONS
 	_add_action("use_item", [_key(KEY_Q), _joy(JOY_BUTTON_DPAD_UP)])  # 回復薬を使う：Q ／ 十字キー上（W-15）
+	# 武器（G-01・G-02）：F＝剣、1＝AR、2＝SMG、3＝SG。パッドは武器の輪（R3。銃のときは△長押しでも）
+	_add_action("weapon_sword", [_key(KEY_F)])
+	_add_action("weapon_ar", [_key(KEY_1)])
+	_add_action("weapon_smg", [_key(KEY_2)])
+	_add_action("weapon_sg", [_key(KEY_3)])
+	_add_action("weapon_wheel", [_joy(JOY_BUTTON_RIGHT_STICK)])  # R3
+	_add_action("wheel_hold", [_joy(JOY_BUTTON_Y)])  # △（銃のときの長押しだけに使う）
 
 
 func _add_action(action_name: String, events: Array) -> void:
@@ -760,6 +779,13 @@ func _build_hud() -> void:
 	enemy_bars = EnemyBars.new()
 	enemy_bars.name = "EnemyBars"
 	layer.add_child(enemy_bars)
+	# 武器の輪（G-02）
+	weapon_wheel = WeaponWheel.new()
+	weapon_wheel.name = "WeaponWheel"
+	weapon_wheel.chosen.connect(func(id: String) -> void:
+		if player.weapons.request(id):
+			_on_log("持ち替え：" + str(Weapons.LABELS[id])))
+	layer.add_child(weapon_wheel)
 	# 見つけたときのお知らせ（W-15）
 	var toast := DiscoveryToast.new()
 	toast.name = "DiscoveryToast"

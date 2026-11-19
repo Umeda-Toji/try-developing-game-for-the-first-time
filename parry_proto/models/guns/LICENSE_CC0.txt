@@ -1,0 +1,5 @@
+Gun models (CC0 1.0)
+- AssaultRifle_1.fbx / SubmachineGun_1.fbx / Shotgun_1.fbx
+  from "Ultimate Gun Pack" (Low Poly Guns Pack) by Quaternius
+  https://quaternius.itch.io/50-lowpoly-guns  /  https://opengameart.org/content/low-poly-guns-pack
+https://creativecommons.org/publicdomain/zero/1.0/

@@ -32,6 +32,7 @@ extends CharacterBody3D
 
 signal hp_changed(current: int, max_value: int)
 signal event_logged(text: String)
+signal wheel_requested(hold_mode: bool)   # 武器の輪を開きたい（G-02。main.gd が WeaponWheel を開く）
 
 enum State { MOVE, ATTACK, DODGE, HITSTUN, DEAD, CHARGE, CLIMB, SWIM }
 
@@ -56,6 +57,7 @@ const CHARGE_MAX_FRAMES := 60      # 溜めに入ってから最大まで溜ま�
 const CHARGE_MAX_MULTIPLIER := 2.0 # 最大まで溜めたときのダメージ・体幹ダメージの倍率
 
 # ソフトロック（P-17）：ロックオンしていなくても、攻撃の瞬間に近くの敵を向く
+const WHEEL_HOLD_FRAMES := 20            # 銃のとき△をこれだけ押し続けると武器の輪が開く（G-02）
 const LOCK_RANGE := 25.0                  # ロックオンできる距離（m。今までと同じ）
 const LOCK_RELEASE_HOLD_FRAMES := 45      # ロックオン中にこれだけ押し続けると解除（L-01）
 const SOFT_LOCK_RANGE := 5.0             # この距離（m）以内の敵だけ
@@ -160,6 +162,9 @@ var max_stamina := STAMINA_MAX
 var attack_mult := 1.0
 var hitstop_frames := 0
 var lock_target: Node3D = null
+var weapons: Weapons           # 武器の持ち替え（G-01）
+var input_blocked := false     # 武器の輪を開いている間は true（移動・ジャンプ・攻撃をしない）
+var _wheel_hold_frames := 0
 var _lock_hold_frames := 0     # ロックオンのボタンを押し続けているフレーム数（L-01）
 var _lock_hold_done := false   # 長押しで解除した（離すまで、ほかのことをしない）
 
@@ -193,6 +198,9 @@ func _ready() -> void:
 	add_to_group("player")
 	safe_position = global_position
 	hitbox.hit_landed.connect(_on_hitbox_hit)
+	weapons = Weapons.new()
+	weapons.name = "Weapons"
+	weapons.setup(self, model)
 	apply_upgrades()
 	hp = max_hp
 	stamina = max_stamina
@@ -211,8 +219,14 @@ func apply_difficulty() -> void:
 # メインループ（1tick = 1フレーム）
 # =========================================================
 func _physics_process(delta: float) -> void:
-	_buffer_inputs()
-	_update_lock_on_input()
+	var wheel := get_tree().get_first_node_in_group("weapon_wheel") as WeaponWheel
+	input_blocked = wheel != null and wheel.blocks_input()
+	if input_blocked:
+		_buffered_action = ""  # 武器の輪を開いている間の入力は、閉じた後に持ち越さない
+	else:
+		_buffer_inputs()
+		_update_lock_on_input()
+		_update_weapon_input()
 	if lock_target != null and (not is_instance_valid(lock_target) or lock_target.call("is_dead")):
 		lock_target = null
 
@@ -225,6 +239,7 @@ func _physics_process(delta: float) -> void:
 	if _counter_frames > 0:
 		_counter_frames -= 1
 	state_frame += 1
+	weapons.tick()
 
 	match state:
 		State.MOVE:
@@ -296,9 +311,9 @@ func _state_move() -> void:
 	elif dir.length() > 0.1:
 		_face_dir(dir, 0.25)
 
-	if Input.is_action_just_pressed("use_item"):
+	if Input.is_action_just_pressed("use_item") and not input_blocked:
 		use_heal()
-	match _take_buffered(["attack_light", "attack_heavy", "dodge"]):
+	match _take_buffered(_attacks_allowed(["attack_light", "attack_heavy", "dodge"])):
 		"attack_light":
 			_start_attack("L1", true)
 		"attack_heavy":
@@ -364,7 +379,7 @@ func _state_dodge() -> void:
 	velocity.z = _dodge_dir.z * speed
 
 	if state_frame >= DODGE_CANCEL_FRAME:
-		match _take_buffered(["attack_light", "attack_heavy"]):
+		match _take_buffered(_attacks_allowed(["attack_light", "attack_heavy"])):
 			"attack_light":
 				_start_attack("L1", true)
 				return
@@ -707,7 +722,7 @@ func _respawn(damage: int, why: String) -> void:
 
 # ジャンプ（2回まで）と滑空（M-01・M-02）。MOVE の状態のときだけ呼ぶ
 func _update_jump_and_glide() -> void:
-	if Input.is_action_just_pressed("jump"):
+	if Input.is_action_just_pressed("jump") and not input_blocked:
 		if not is_on_floor() and jumps_used == 0:
 			jumps_used = 1  # 足場から落ちている途中は、1回目のジャンプを使ったことにする
 		if jumps_used < MAX_JUMPS:  # ジャンプはスタミナを使わない
@@ -750,6 +765,31 @@ func use_heal() -> bool:
 	return true
 
 
+# 剣の攻撃（パリィ）は、剣を持っていて持ち替え中でないときだけ（G-01）。回避はいつでもよい
+func _attacks_allowed(list: Array) -> Array:
+	if weapons != null and (weapons.is_gun() or weapons.is_swapping()):
+		return list.filter(func(a): return a == "dodge")
+	return list
+
+
+# 武器の持ち替え（F・1・2・3）と武器の輪（R3、銃のときは△長押し）（G-01・G-02）
+func _update_weapon_input() -> void:
+	if state == State.DEAD or weapons == null:
+		return
+	for pair in [["weapon_sword", "sword"], ["weapon_ar", "ar"], ["weapon_smg", "smg"], ["weapon_sg", "sg"]]:
+		if Input.is_action_just_pressed(pair[0]) and weapons.request(pair[1]):
+			_log("持ち替え：" + str(Weapons.LABELS[pair[1]]))
+	if Input.is_action_just_pressed("weapon_wheel"):
+		wheel_requested.emit(false)
+	# △の長押しは銃のときだけ（剣のときの△はパリィなので、長押しを数えない）
+	if weapons.is_gun() and Input.is_action_pressed("wheel_hold"):
+		_wheel_hold_frames += 1
+		if _wheel_hold_frames == WHEEL_HOLD_FRAMES:
+			wheel_requested.emit(true)
+	else:
+		_wheel_hold_frames = 0
+
+
 func _use_stamina(amount: float) -> void:
 	stamina = maxf(stamina - amount, 0.0)
 	_stamina_used = true
@@ -784,6 +824,8 @@ func _take_buffered(allowed: Array) -> String:
 
 
 func _get_move_input() -> Vector3:
+	if input_blocked:
+		return Vector3.ZERO
 	var v := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:

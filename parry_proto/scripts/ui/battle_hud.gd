@@ -40,6 +40,7 @@ var _player_label: Label
 var _enemy_name_label: Label
 var _player_fill: StyleBoxFlat
 var _posture_fill: StyleBoxFlat
+var weapon_label: Label   # 右下：今の武器（G-01。弾の数は 5b で足す）
 
 
 func _ready() -> void:
@@ -48,6 +49,19 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_player_bar()
 	_build_enemy_panel()
+	weapon_label = _make_label()
+	weapon_label.name = "Weapon"
+	weapon_label.add_theme_font_size_override("font_size", 24)
+	weapon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	weapon_label.anchor_left = 1.0
+	weapon_label.anchor_right = 1.0
+	weapon_label.anchor_top = 1.0
+	weapon_label.anchor_bottom = 1.0
+	weapon_label.offset_left = -360
+	weapon_label.offset_right = -MARGIN
+	weapon_label.offset_top = -MARGIN - 40
+	weapon_label.offset_bottom = -MARGIN
+	add_child(weapon_label)
 
 
 func _process(_delta: float) -> void:
@@ -131,6 +145,9 @@ func _make_label() -> Label:
 # 毎フレームの更新
 # =========================================================
 func _update_player() -> void:
+	if player.weapons != null:
+		var w: Weapons = player.weapons
+		weapon_label.text = ("持ち替え中… " + w.label()) if w.is_swapping() else w.label()
 	player_hp_bar.max_value = player.max_hp
 	player_hp_bar.value = player.hp
 	_player_label.text = "HP %d / %d" % [player.hp, player.max_hp]

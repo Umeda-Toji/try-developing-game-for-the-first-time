@@ -40,6 +40,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # カメラを回す。amount は（横, 縦）の回す量。設定（O-01）の感度と反転を掛ける
 func apply_look(amount: Vector2, is_mouse: bool, aiming: bool = false) -> void:
+	var wheel := get_tree().get_first_node_in_group("weapon_wheel") as WeaponWheel
+	if wheel != null and wheel.is_open:
+		return  # 武器の輪を開いている間は、右スティックは武器を選ぶのに使う
 	var s := GameSettings.look_scale(is_mouse, aiming)
 	yaw -= amount.x * s.x
 	pitch = clampf(pitch - amount.y * s.y, -1.2, 0.4)
