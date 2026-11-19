@@ -28,6 +28,10 @@ const VOLUMETRIC_ANISOTROPY := 0.55    # 太陽の方向を見ると明るく見
 const SHADOW_DISTANCE_HIGH := 80.0
 const SHADOW_DISTANCE_LOW := 40.0
 const SCALE_HIGH := 0.8
+# 高画質を軽くする（11/20。B）：影は2分割、SSAO・SSIL は半分の解像度、ボリュームフォグは少し粗く
+const HIGH_SHADOW_MODE := DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS   # 前は4分割
+const VOLUMETRIC_SIZE := 48          # ボリュームフォグの細かさ（横・縦。前は 64）
+const VOLUMETRIC_DEPTH := 48         # 〃 奥行き（前は 64）
 const SCALE_LOW := 0.75
 
 static var current := HIGH
@@ -79,11 +83,15 @@ static func apply(env: Environment, viewport: Viewport, sun: DirectionalLight3D,
 		viewport.msaa_3d = Viewport.MSAA_DISABLED
 		viewport.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
 	if sun != null:
-		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if high else DirectionalLight3D.SHADOW_ORTHOGONAL
+		sun.directional_shadow_mode = HIGH_SHADOW_MODE if high else DirectionalLight3D.SHADOW_ORTHOGONAL
 		sun.directional_shadow_max_distance = SHADOW_DISTANCE_HIGH if high else SHADOW_DISTANCE_LOW
 		sun.light_volumetric_fog_energy = 1.5 if high else 0.0
 	RenderingServer.directional_soft_shadow_filter_set_quality(
 		RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM if high else RenderingServer.SHADOW_QUALITY_SOFT_LOW)
+	# SSAO・SSIL は半分の解像度で計算する（見た目はほぼ同じで、ずっと軽い）
+	RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_MEDIUM, true, 0.5, 2, 50.0, 300.0)
+	RenderingServer.environment_set_ssil_quality(RenderingServer.ENV_SSIL_QUALITY_MEDIUM, true, 0.5, 4, 50.0, 300.0)
+	RenderingServer.environment_set_volumetric_fog_volume_size(VOLUMETRIC_SIZE, VOLUMETRIC_DEPTH)
 
 
 static func toggle() -> void:
