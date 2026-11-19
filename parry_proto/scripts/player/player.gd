@@ -58,6 +58,8 @@ const CHARGE_MAX_MULTIPLIER := 2.0 # 最大まで溜めたときのダメージ�
 
 # ソフトロック（P-17）：ロックオンしていなくても、攻撃の瞬間に近くの敵を向く
 const AIM_WALK_MULT := 0.5               # 構えている間の歩く速さ（G-03）
+const FLOOR_MAX_ANGLE_DEG := 40.0        # 歩いて登れる坂の角度（T-02。11/19 決定）
+const FLOOR_SNAP := 0.5                  # 坂を下るとき、地面に吸い付く距離（m）
 const AIM_RAY_LENGTH := 200.0            # 画面の真ん中から狙う所を探す長さ（m）
 const WHEEL_HOLD_FRAMES := 20            # 銃のとき△をこれだけ押し続けると武器の輪が開く（G-02）
 const LOCK_RANGE := 25.0                  # ロックオンできる距離（m。今までと同じ）
@@ -202,6 +204,8 @@ func _ready() -> void:
 	add_to_group("player")
 	safe_position = global_position
 	hitbox.hit_landed.connect(_on_hitbox_hit)
+	floor_max_angle = deg_to_rad(FLOOR_MAX_ANGLE_DEG)
+	floor_snap_length = FLOOR_SNAP
 	weapons = Weapons.new()
 	weapons.name = "Weapons"
 	weapons.setup(self, model)

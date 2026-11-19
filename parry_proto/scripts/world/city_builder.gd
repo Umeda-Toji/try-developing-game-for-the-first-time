@@ -135,12 +135,28 @@ func build(root: Node3D, kit: RuinKit, nature: NatureKit) -> void:
 
 
 func _build_ground(root: Node3D) -> void:
+	if "--terrain-trial" in OS.get_cmdline_user_args():
+		_build_terrain_trial(root)
+		return
 	for g in GROUNDS:
 		var xr: Vector2 = g[0]
 		var zr: Vector2 = g[1]
 		var size := Vector3(xr.y - xr.x, GROUND_THICKNESS, zr.y - zr.x)
 		var pos := Vector3((xr.x + xr.y) * 0.5, -GROUND_THICKNESS * 0.5, (zr.x + zr.y) * 0.5)
 		WorldBuilder._add_box(root, pos, size, WorldMaterials.make("street"), true)
+
+
+# 試し（6a）：街全体に起伏を作る。一本道のエリアと川は平らのまま（まわり4mでなじませる）
+#  建物などはまだ置き直していない（6c で行う）。重さと見た目を確かめるためだけ
+func _build_terrain_trial(root: Node3D) -> void:
+	var t := Terrain.new()
+	t.name = "Terrain"
+	t.area = Rect2(CITY_MIN, CITY_MAX - CITY_MIN)
+	t.flat_zones = [[CORRIDOR, 4.0], [Rect2(CITY_MIN.x, RIVER_Z.x - 2.0, CITY_MAX.x - CITY_MIN.x, RIVER_Z.y - RIVER_Z.x + 4.0), 4.0]]
+	t.material = WorldMaterials.make("street")
+	t.build(root)
+	# 地面の下の受け（起伏の下に落ちないように）
+	WorldBuilder._add_box(root, Vector3(0, -Terrain.HOLLOW_MAX - 1.5, 0), Vector3(CITY_MAX.x - CITY_MIN.x, 1.0, CITY_MAX.y - CITY_MIN.y), WorldMaterials.make("street"), false)
 
 
 func _build_river(root: Node3D) -> void:

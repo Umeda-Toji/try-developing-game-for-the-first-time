@@ -133,6 +133,8 @@ var flower: EnemyFlower       # 頭の花（F-01）
 func _ready() -> void:
 	hp = max_hp
 	add_to_group("enemies")
+	floor_max_angle = deg_to_rad(Player.FLOOR_MAX_ANGLE_DEG)  # 坂（T-02）：プレイヤーと同じ角度まで登れる
+	floor_snap_length = Player.FLOOR_SNAP
 	if recolor_model:
 		model.set_body_color(body_color)
 	# 頭の花（F-01）：顔の代わりに付ける。第2形態がある敵（ボス）は、肩と背中の花も用意しておく

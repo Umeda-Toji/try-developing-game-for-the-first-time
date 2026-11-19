@@ -93,7 +93,8 @@ const TEST_SCRIPTS := {
 	"--flower-test": "res://tests/flower_test.gd",  # 敵の頭の花（F-01）
 	"--sound-test": "res://tests/sound_test.gd",  # 探索の曲・環境音・花の音（A-01〜A-03）
 	"--weapon-test": "res://tests/weapon_test.gd",  # 武器の持ち替え・武器の輪（G-01・G-02）
-	"--gun-test": "res://tests/gun_test.gd",  # 撃つ・構え・反動・リロード（G-03）  # 景色の確認用（テストではない。エリアを順に映す）
+	"--gun-test": "res://tests/gun_test.gd",  # 撃つ・構え・反動・リロード（G-03）
+	"--terrain-test": "res://tests/terrain_test.gd",  # 起伏のある地面（T-01・T-02。6a の試し）  # 景色の確認用（テストではない。エリアを順に映す）
 }
 const TITLE_TEST_FLAG := "--title-test"  # テストのうち、これだけはタイトル画面を出す
 const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test", "--sound-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
