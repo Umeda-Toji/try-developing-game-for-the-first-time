@@ -32,6 +32,8 @@ const RUIN_HEIGHT := Vector2(1.5, 5.0)
 const RIVER_Z := Vector2(95.0, 103.0)
 const RIVER_SURFACE_Y := -0.8
 const RIVER_BOTTOM_Y := -3.0
+const RIVER_BANK_TOP := -0.05             # 川岸の壁の上（地面のすぐ下）
+const RIVER_BANK_THICKNESS := 2.0         # 川岸の壁の厚さ（m）
 const BRIDGES_X := [-100.0, 0.0, 60.0]   # 橋のある所（x）
 const BRIDGE_WIDTH := 6.0
 
@@ -173,6 +175,13 @@ func _build_river(root: Node3D) -> void:
 	var cz := (RIVER_Z.x + RIVER_Z.y) * 0.5
 	# 川の底
 	WorldBuilder._add_box(root, Vector3(0, RIVER_BOTTOM_Y - 0.25, cz), Vector3(width, 0.5, depth), WorldMaterials.make("street"), true)
+	# 川岸の壁（水の中）：地面を起伏（うすい面）にしたので、岸の下を泳いで地面の下へ抜けないように（11/19 直した）
+	#  上は地面のすぐ下（−0.05m）までにして、上からは見えない。登れるので、岸を登って川から出られる
+	var bank_h := -RIVER_BANK_TOP - (RIVER_BOTTOM_Y - 0.5)
+	for bz in [RIVER_Z.x - RIVER_BANK_THICKNESS * 0.5, RIVER_Z.y + RIVER_BANK_THICKNESS * 0.5]:
+		var bank := WorldBuilder._add_box(root, Vector3(0, RIVER_BANK_TOP - bank_h * 0.5, bz), Vector3(width, bank_h, RIVER_BANK_THICKNESS), WorldMaterials.make("street"), true)
+		bank.name = "RiverBank"
+		bank.add_to_group("river_bank")
 	# 水
 	var water := Water.new()
 	water.name = "River"

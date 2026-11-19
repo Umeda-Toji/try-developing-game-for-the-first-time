@@ -166,6 +166,31 @@ func _physics_process(_delta: float) -> void:
 				_place(_sign.global_position + Vector3(0, 0.1, 2.0))
 			if _t == 90:
 				_results["同じ断片は2度数えない"] = Discoveries.fragments.size() == 1
+				# 川（11/19 直した）：川の中で北の岸へ泳ぐ
+				_p.global_position = Vector3(-60.0, -1.2, (CityBuilder.RIVER_Z.x + CityBuilder.RIVER_Z.y) * 0.5)
+				_p.velocity = Vector3.ZERO
+				_p.stamina = Player.STAMINA_MAX
+				_flags["min_y"] = 0.0
+				_step = 9
+				_t = 0
+		9:  # 川を泳いで岸を登る（地面の下へ抜けない）
+			var rig := _main.get_node("CameraRig") as Node3D
+			rig.set("yaw", PI)  # カメラを北（+Z）へ向けて、前へ進む
+			Input.action_press("move_forward")
+			_p.stamina = Player.STAMINA_MAX
+			_flags["min_y"] = minf(float(_flags["min_y"]), _p.global_position.y)
+			var g := WorldBuilder.ground_y(_p.global_position.x, _p.global_position.z)
+			if _p.global_position.z > CityBuilder.RIVER_Z.y + 3.0 and _p.is_on_floor():
+				Input.action_release("move_forward")
+				_results["川を泳いで岸を登り、地面の上に出る（z %.1f、y %.2f／地面 %.2f）" % [_p.global_position.z, _p.global_position.y, g]] = absf(_p.global_position.y - g) < 0.3
+				_finish()
+			elif _p.global_position.z > CityBuilder.RIVER_Z.y + 0.5 and _p.global_position.y < g - 0.5:
+				Input.action_release("move_forward")
+				_results["川の岸の下を抜けて、地面の下に行かない（z %.1f、y %.2f）" % [_p.global_position.z, _p.global_position.y]] = false
+				_finish()
+			elif _t > 900:
+				Input.action_release("move_forward")
+				_results["川を泳いで岸を登る（時間切れ：%s、状態 %s）" % [str(_p.global_position), _p.state_name()]] = false
 				_finish()
 
 
@@ -317,6 +342,17 @@ func _check_terrain() -> void:
 				gaps.append(str(body.global_position))
 				break
 	_results["街の建物の下にすき間がない（すき間：%d）" % gaps.size()] = gaps.is_empty()
+	# 川（11/19 直した）：水の中から岸の方へ泳いでも、岸の壁に当たる（地面の下へ抜けない）
+	var open_rays: Array[String] = []
+	var space2 := _p.get_world_3d().direct_space_state
+	for x in [-120.0, -60.0, -20.0, 30.0, 100.0]:
+		for y in [-0.4, -1.5, -2.6]:
+			for dz in [-1.0, 1.0]:
+				var from := Vector3(x, y, (CityBuilder.RIVER_Z.x + CityBuilder.RIVER_Z.y) * 0.5)
+				var q5 := PhysicsRayQueryParameters3D.create(from, from + Vector3(0, 0, dz * 8.0), 1)
+				if space2.intersect_ray(q5).is_empty():
+					open_rays.append("x%d y%.1f %s" % [int(x), y, "南" if dz < 0 else "北"])
+	_results["川の中から岸の方へ泳いでも、岸の壁に当たる（抜けられる所：%s）" % str(open_rays)] = open_rays.is_empty()
 
 
 func _place(pos: Vector3) -> void:
