@@ -8,6 +8,7 @@
 #  3. Q で使うと HP が 40 戻る。持っていないときは何も起きない。満タンのときは使わない
 #  4. 3つ持っているときは、回復薬を拾わない
 #  5. 最大HP+10・最大スタミナ+10・攻撃力+5% を拾うと、それぞれ増える（HPバーの最大も変わる）
+#  6. 弾の箱（G-04）：種類ごとに5つ。拾うと予備の弾が増える（AR+30・SMG+35・SG+6）。上限なら拾わない
 #  敵は動かさない
 extends Node
 
@@ -90,11 +91,25 @@ func _physics_process(_delta: float) -> void:
 				var dmg: int = _p._make_payload(Player.ATTACKS["H1"])["damage"]
 				_results["攻撃力+5%% を拾うと強攻撃のダメージが %d → %d" % [base, dmg]] = (
 					is_equal_approx(_p.attack_mult, 1.0 + Player.UPGRADE_ATTACK) and dmg == int(round(base * (1.0 + Player.UPGRADE_ATTACK))))
+				_target = _first("ammo_ar")
+				_place(_target.global_position)
+			if _t == 40:
+				var a := Discoveries.ammo_of("ar")
+				_results["AR の弾の箱を拾うと、予備の弾が +30（%d）" % int(a["reserve"])] = int(a["reserve"]) == 30 and not is_instance_valid(_target)
+				Discoveries.ammo_of("sg")["reserve"] = int(Weapons.GUNS["sg"]["reserve_max"])
+				_target = _first("ammo_sg")
+				_place(_target.global_position)
+			if _t == 50:
+				_results["予備の弾が上限のときは、弾の箱を拾わない"] = is_instance_valid(_target) and int(Discoveries.ammo_of("sg")["reserve"]) == int(Weapons.GUNS["sg"]["reserve_max"])
+				Discoveries.ammo_of("sg")["reserve"] = 30
+				_place(_target.global_position + Vector3(0, 0, 0.01))
+			if _t == 60:
+				_results["SG の弾の箱は +6（上限 %d）" % int(Weapons.GUNS["sg"]["reserve_max"])] = int(Discoveries.ammo_of("sg")["reserve"]) == 36
 				_finish()
 
 
 func _check_layout() -> void:
-	var counts := {"heal": 0, "hp": 0, "stamina": 0, "attack": 0}
+	var counts := {"heal": 0, "hp": 0, "stamina": 0, "attack": 0, "ammo_ar": 0, "ammo_smg": 0, "ammo_sg": 0}
 	var bad: Array[String] = []
 	var space := _p.get_world_3d().direct_space_state
 	for item in get_tree().get_nodes_in_group("pickups"):
@@ -106,6 +121,8 @@ func _check_layout() -> void:
 			bad.append("%s（%s）" % [item.name, str(pos)])
 	_results["街に 回復薬%d・最大HP%d・最大スタミナ%d・攻撃力%d（下に床がない：%s）" % [counts["heal"], counts["hp"], counts["stamina"], counts["attack"], str(bad)]] = (
 		counts["heal"] == CityBuilder.HEAL_ITEMS and counts["hp"] == 3 and counts["stamina"] == 3 and counts["attack"] == 3 and bad.is_empty())
+	_results["弾の箱が種類ごとに %d つ（AR %d・SMG %d・SG %d）" % [CityBuilder.AMMO_CRATES, counts["ammo_ar"], counts["ammo_smg"], counts["ammo_sg"]]] = (
+		counts["ammo_ar"] == CityBuilder.AMMO_CRATES and counts["ammo_smg"] == CityBuilder.AMMO_CRATES and counts["ammo_sg"] == CityBuilder.AMMO_CRATES)
 
 
 # その種類の、まだあるアイテムのうち最初のもの

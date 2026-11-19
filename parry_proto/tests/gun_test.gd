@@ -11,6 +11,7 @@
 #  6. 構える（右クリック）と、10フレームでカメラが寄って（1.6m）ズームする（視野45°）。歩く速さは半分。回避で構えを解く
 #  7. 胞子玉を撃ち落とせる
 #  8. 剣のときは撃てない
+#  9. SMG は4フレームに1発・ダメージ1、SG は50フレームに1発・8粒（近くで何粒も当たる）・15mより遠くには届かない（G-04）
 extends Node
 
 var _main: Node
@@ -22,6 +23,8 @@ var _step := 0
 var _results := {}
 var _f := {}
 var _shots := 0
+var _hits := 0       # 撃った弾（粒）が敵に当たった数の合計
+var _pellets := []   # 1発ごとの粒の数
 
 
 func _ready() -> void:
@@ -32,7 +35,10 @@ func _ready() -> void:
 	_zako = _main.enemies[0]
 	for e in _main.enemies:
 		e.aggro_range = 0.0
-	_w.fired.connect(func(info: Dictionary) -> void: _shots += 1)
+	_w.fired.connect(func(info: Dictionary) -> void:
+		_shots += 1
+		_hits += int(info["hits"])
+		_pellets.append(int(info["pellets"])))
 	Discoveries.reset()
 
 
@@ -163,6 +169,43 @@ func _physics_process(_delta: float) -> void:
 			if _t == 75:
 				Input.action_release("fire")
 				_results["胞子玉を撃ち落とせる"] = not is_instance_valid(_f["proj"]) or (_f["proj"] as Node).is_queued_for_deletion()
+				_w.request("smg")
+				_step = 3
+				_t = 0
+		3:  # SMG：4フレームに1発、ダメージ1
+			if _t == Weapons.SWAP_FRAMES + 5:
+				_f["hp"] = _zako.hp
+				_shots = 0
+				_hits = 0
+				_f["smg_snd"] = _main.sfx.play_counts["shot_smg"]
+				Input.action_press("fire")
+			if _t == Weapons.SWAP_FRAMES + 65:
+				Input.action_release("fire")
+				var hits := int(_f["hp"]) - _zako.hp
+				_results["SMG：60フレームで %d 発（4フレームに1発）、当たった %d 発でダメージ1ずつ（%d 減った）" % [_shots, _hits, hits]] = _shots >= 14 and _shots <= 16 and _hits > 0 and hits == _hits
+				_results["SMG の撃つ音が鳴る"] = _main.sfx.play_counts["shot_smg"] > int(_f["smg_snd"])
+				_w.request("sg")
+			if _t == Weapons.SWAP_FRAMES * 2 + 75:
+				_f["hp"] = _zako.hp
+				_shots = 0
+				_hits = 0
+				_pellets.clear()
+				Input.action_press("fire")
+			if _t == Weapons.SWAP_FRAMES * 2 + 135:
+				Input.action_release("fire")
+				var hits := int(_f["hp"]) - _zako.hp
+				_results["SG：60フレームで %d 発（50フレームに1発）、1発 %s 粒。当たった %d 粒でダメージ1ずつ（%d 減った）" % [_shots, str(_pellets), _hits, hits]] = (
+					_shots == 2 and _pellets.all(func(n): return n == 8) and _hits >= 2 and hits == _hits)
+				# 遠く（18m）の敵には届かない
+				_p.global_position = Vector3(-3, 0.1, 9)
+				_zako.global_position = Vector3(-3, 0.1, -9)
+				_f["hp"] = _zako.hp
+				_w.ammo("sg")["mag"] = 6
+			if _t == Weapons.SWAP_FRAMES * 2 + 140:
+				Input.action_press("fire")
+			if _t == Weapons.SWAP_FRAMES * 2 + 150:
+				Input.action_release("fire")
+				_results["SG は %d m より遠い敵には届かない" % int(Weapons.GUNS["sg"]["range"])] = _zako.hp == int(_f["hp"])
 				_finish()
 
 

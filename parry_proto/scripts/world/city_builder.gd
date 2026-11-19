@@ -81,6 +81,8 @@ const HEAL_ITEMS := 8            # 回復薬（道・空き地に置く）
 # 強化アイテム：1つ目は見晴らしの塔の屋上、次の ROOF_UPGRADES 個は低めのビルの屋上、残りは道
 const UPGRADE_ITEMS := ["attack", "hp", "stamina", "attack", "hp", "stamina", "hp", "stamina", "attack"]
 const ROOF_UPGRADES := 5
+const AMMO_CRATES := 5           # 弾の箱：種類ごとの数（G-04。道の途中・交差点・空き地）
+const AMMO_KINDS := ["ammo_ar", "ammo_smg", "ammo_sg"]
 # 寄り道の敵（W-15 ④-3）：道の強化アイテムを守る組・見晴らしの塔の下・空き地。[種類, 種類] の組
 const GUARD_GROUPS := [["zako", "heavy"], ["swift", "zako"], ["heavy", "caster"]]
 const TOWER_GROUP := ["heavy", "caster"]
@@ -429,7 +431,17 @@ func _build_pickups(root: Node3D) -> void:
 	for i in HEAL_ITEMS:
 		_add_pickup(root, "heal", id, ground.pop_back())
 		id += 1
+	# 弾の箱：今までの置き場所は変えずに、道の途中も足した場所から選ぶ（ほかの物から6m以上離す）
+	var more := _open_spots(true)
+	for i in AMMO_CRATES:
+		for k in AMMO_KINDS:
+			if more.is_empty():
+				break
+			_add_pickup(root, k, id, more.pop_back())
+			id += 1
 	stats["pickups"] = id
+	stats["ammo_crates"] = id - (UPGRADE_ITEMS.size() + HEAL_ITEMS)
+	Discoveries.ammo_total = int(stats["ammo_crates"])
 	Discoveries.heal_total = HEAL_ITEMS
 	Discoveries.upgrade_total = UPGRADE_ITEMS.size()
 
@@ -493,7 +505,8 @@ func _build_vistas(root: Node3D) -> void:
 
 
 # 物を置ける地面の場所（交差点の角と空き地の端）。もう使った所から6m以上離す。シード固定で混ぜて返す
-func _open_spots() -> Array[Vector3]:
+# with_mid：道の途中（交差点と交差点の間）も候補に入れる（弾の箱に使う）
+func _open_spots(with_mid: bool = false) -> Array[Vector3]:
 	var out: Array[Vector3] = []
 	var lines: Array[float] = []
 	var v := CITY_MIN.x + STREET * 0.5 + BLOCK + STREET * 0.5
@@ -504,6 +517,12 @@ func _open_spots() -> Array[Vector3]:
 	for x in lines:
 		for z in lines:
 			cands.append(Vector3(x - 2.5, 0, z - 2.5))
+	if with_mid:
+		var half := (BLOCK + STREET) * 0.5
+		for x in lines:
+			for z in lines:
+				cands.append(Vector3(x + 2.5, 0, z + half))   # 縦の道の途中
+				cands.append(Vector3(x + half, 0, z + 2.5))   # 横の道の途中
 	for pk in _parks:
 		cands.append(Vector3(pk.position.x + 4.0, 0, pk.position.y + 4.0))
 		cands.append(Vector3(pk.end.x - 4.0, 0, pk.end.y - 4.0))

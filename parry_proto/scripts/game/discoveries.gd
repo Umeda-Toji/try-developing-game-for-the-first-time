@@ -29,6 +29,8 @@ var attack_ups := 0        # 拾った「攻撃力+5%」の数
 var killed := {}           # 倒した寄り道の敵の番号 → true（リトライしても戻らない）
 # 銃の弾（G-03）："ar" など → {"mag": 弾倉の弾, "reserve": 予備の弾}。最初は弾倉ぶんだけ
 var ammo := {}
+var ammo_crates := 0       # 拾った弾の箱の数（G-04）
+var ammo_total := 0        # 街にある弾の箱の数（CityBuilder が入れる）
 # ④-4 眺めのいい場所
 var vistas := {}           # 見た眺めの番号 → true
 var vista_total := 0       # 街にある眺めのいい場所の数（CityBuilder が入れる）
@@ -79,6 +81,12 @@ func take_item(id: int, kind: String) -> void:
 		"attack":
 			attack_ups += 1
 			discovered.emit("攻撃力 +%d%%" % int(round(Player.UPGRADE_ATTACK * 100.0)))
+		"ammo_ar", "ammo_smg", "ammo_sg":
+			var gun := kind.trim_prefix("ammo_")
+			var a := ammo_of(gun)
+			a["reserve"] = mini(int(a["reserve"]) + int(Weapons.GUNS[gun]["pickup"]), int(Weapons.GUNS[gun]["reserve_max"]))
+			ammo_crates += 1
+			discovered.emit("%s の弾 +%d（予備 %d）" % [Weapons.LABELS[gun], int(Weapons.GUNS[gun]["pickup"]), int(a["reserve"])])
 	autosave()
 
 
@@ -97,15 +105,22 @@ func see_vista(id: int) -> void:
 # ポーズメニューに出す「見つけたもの」の文（B。11/19）
 func summary_text() -> String:
 	var ups := hp_ups + stamina_ups + attack_ups
-	var heals_found := picked.size() - ups
+	var heals_found := picked.size() - ups - ammo_crates
 	var lines: Array[String] = [
 		"記録の断片　%d / %d" % [fragments.size(), fragment_total],
 		"強化　%d / %d（HP %d・スタミナ %d・攻撃 %d）" % [ups, upgrade_total, hp_ups, stamina_ups, attack_ups],
 		"回復薬　%d / %d（いま %d つ持っている）" % [heals_found, heal_total, heals],
+		"弾の箱　%d / %d" % [ammo_crates, ammo_total],
 		"寄り道の敵　%d / %d" % [killed.size(), side_total],
 		"眺めのいい場所　%d / %d" % [vistas.size(), vista_total],
 	]
 	return "\n".join(lines)
+
+
+# 弾の箱を拾えるか：予備の弾が上限なら拾わない（置いたままにする）
+func ammo_full(kind: String) -> bool:
+	var gun := kind.trim_prefix("ammo_")
+	return int(ammo_of(gun)["reserve"]) >= int(Weapons.GUNS[gun]["reserve_max"])
 
 
 # 銃の弾の数（無ければ、弾倉ぶんだけ持っている状態にする）
@@ -126,6 +141,7 @@ func reset() -> void:
 	killed.clear()
 	vistas.clear()
 	ammo.clear()
+	ammo_crates = 0
 	has_position = false
 
 
@@ -157,6 +173,7 @@ func save_game() -> bool:
 	cfg.set_value("player", "attack_ups", attack_ups)
 	cfg.set_value("player", "difficulty", Difficulty.current)
 	cfg.set_value("player", "ammo", ammo)
+	cfg.set_value("player", "ammo_crates", ammo_crates)
 	if has_position:
 		cfg.set_value("player", "position", saved_position)
 	return cfg.save(save_path) == OK
@@ -189,6 +206,7 @@ func load_game() -> bool:
 	var saved_ammo = cfg.get_value("player", "ammo", {})
 	if saved_ammo is Dictionary:
 		ammo = (saved_ammo as Dictionary).duplicate(true)
+	ammo_crates = int(cfg.get_value("player", "ammo_crates", 0))
 	var diff: String = cfg.get_value("player", "difficulty", Difficulty.current)
 	if Difficulty.SETTINGS.has(diff):
 		Difficulty.current = diff

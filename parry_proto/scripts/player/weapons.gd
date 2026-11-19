@@ -23,14 +23,14 @@ const SWAP_FRAMES := 20
 const IDS := ["sword", "ar", "smg", "sg"]
 const LABELS := {"sword": "剣", "ar": "AR", "smg": "SMG", "sg": "SG"}
 const GUN_DIR := "res://models/guns/"
-# 銃の数値（11/19 決定）。フレームは物理フレーム。spread は度（腰だめ／構え）。range は m
+# 銃の数値（11/19 決定）。フレームは物理フレーム。spread は度（腰だめ／構え）。range は m。pickup は弾の箱1つで増える予備の弾（G-04）
 const GUNS := {
 	"ar": {"model": "AssaultRifle_1", "length": 0.85, "damage": 2, "pellets": 1, "interval": 6, "mag": 30, "reserve_max": 120,
-		"recoil": "small", "spread_hip": 2.5, "spread_aim": 0.6, "range": 60.0, "reload": 120},
+		"recoil": "small", "spread_hip": 2.5, "spread_aim": 0.6, "range": 60.0, "reload": 120, "pickup": 30},
 	"smg": {"model": "SubmachineGun_1", "length": 0.6, "damage": 1, "pellets": 1, "interval": 4, "mag": 35, "reserve_max": 140,
-		"recoil": "tiny", "spread_hip": 4.0, "spread_aim": 1.5, "range": 35.0, "reload": 100},
+		"recoil": "tiny", "spread_hip": 4.0, "spread_aim": 1.5, "range": 35.0, "reload": 100, "pickup": 35},
 	"sg": {"model": "Shotgun_1", "length": 0.95, "damage": 1, "pellets": 8, "interval": 50, "mag": 6, "reserve_max": 36,
-		"recoil": "large", "spread_hip": 7.0, "spread_aim": 5.0, "range": 15.0, "reload": 150},
+		"recoil": "large", "spread_hip": 7.0, "spread_aim": 5.0, "range": 15.0, "reload": 150, "pickup": 6},
 }
 const HAND_BONE := "hand_r"
 const BACK_BONE := "spine_03"
@@ -206,7 +206,7 @@ func muzzle_position() -> Vector3:
 # 撃つ。aim_point：狙う所（世界）。aiming：構えているか。attack_mult：攻撃力の強化。exclude：当てない物の RID
 # 戻り値：{"shot": 撃ったか, "empty": 弾切れだったか, "hits": 敵に当たった数, "enemies": 当たった敵, "projectiles": 消した胞子玉の数}
 func fire(aim_point: Vector3, aiming: bool, attack_mult: float, exclude: Array) -> Dictionary:
-	var info := {"shot": false, "empty": false, "hits": 0, "enemies": [], "projectiles": 0}
+	var info := {"shot": false, "empty": false, "hits": 0, "enemies": [], "projectiles": 0, "pellets": 0}
 	if not can_fire():
 		return info
 	var g: Dictionary = GUNS[current]
@@ -243,6 +243,7 @@ func fire(aim_point: Vector3, aiming: bool, attack_mult: float, exclude: Array) 
 					info["hits"] = int(info["hits"]) + 1
 					(info["enemies"] as Array).append(ent)
 		_add_tracer(from, end)
+		info["pellets"] = int(info["pellets"]) + 1
 	info["shot"] = true
 	GameFeel.play_sound("shot_" + current)
 	fired.emit(info)

@@ -3,6 +3,7 @@
 #
 # 拾えるアイテム（W-15 ④-2）
 #  ・kind："heal"（回復薬。持ち歩いて、ボタンで使う）／"hp"（最大HP+10）／"stamina"（最大スタミナ+10）／"attack"（攻撃力+5%）
+#          "ammo_ar"／"ammo_smg"／"ammo_sg"（弾の箱。予備の弾が増える。上限なら拾わない。G-04）
 #  ・プレイヤーが PICK_DISTANCE（m）より近づくと拾う。回復薬を持てる数がいっぱいのときは拾わない
 #  ・拾ったものは Discoveries が覚えていて、リトライしても戻らない
 #  ・遠くから見つけられるように、光る玉と、うすい光の柱を出す（見た目だけ）
@@ -19,6 +20,10 @@ const COLORS := {
 	"hp": Color(1.0, 0.35, 0.3),
 	"stamina": Color(1.0, 0.85, 0.3),
 	"attack": Color(0.85, 0.92, 1.0),
+	# 弾の箱（G-04）：箱の形。AR＝橙、SMG＝水色、SG＝紫
+	"ammo_ar": Color(1.0, 0.6, 0.25),
+	"ammo_smg": Color(0.35, 0.85, 1.0),
+	"ammo_sg": Color(0.75, 0.45, 1.0),
 }
 
 var kind := "heal"
@@ -34,12 +39,17 @@ func _ready() -> void:
 	var col: Color = COLORS[kind]
 	orb = MeshInstance3D.new()
 	orb.name = "Orb"
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.16 if kind == "heal" else 0.2
-	sphere.height = sphere.radius * 2.0
-	sphere.radial_segments = 12
-	sphere.rings = 6
-	orb.mesh = sphere
+	if kind.begins_with("ammo_"):
+		var box := BoxMesh.new()
+		box.size = Vector3(0.4, 0.22, 0.26)
+		orb.mesh = box
+	else:
+		var sphere := SphereMesh.new()
+		sphere.radius = 0.16 if kind == "heal" else 0.2
+		sphere.height = sphere.radius * 2.0
+		sphere.radial_segments = 12
+		sphere.rings = 6
+		orb.mesh = sphere
 	orb.material_override = _glow_material(col, 1.0, 4.0)
 	orb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	orb.position = Vector3.UP * ORB_HEIGHT
@@ -73,6 +83,8 @@ func _physics_process(_delta: float) -> void:
 		return
 	if kind == "heal" and Discoveries.heals >= Discoveries.HEAL_CARRY_MAX:
 		return  # もう持てない（置いたままにする）
+	if kind.begins_with("ammo_") and Discoveries.ammo_full(kind):
+		return  # 予備の弾が上限（置いたままにする）
 	Discoveries.take_item(item_id, kind)
 	player.apply_upgrades(kind)
 	queue_free()
