@@ -83,7 +83,8 @@ const TEST_SCRIPTS := {
 	"--side-enemies-test": "res://tests/side_enemies_test.gd",  # 街の寄り道の敵（W-15 ④-3）
 	"--vista-test": "res://tests/vista_test.gd",  # 眺めのいい場所（W-15 ④-4）
 	"--save-test": "res://tests/save_test.gd",  # セーブ（S-01）
-	"--map-test": "res://tests/map_test.gd",  # 地図（C）  # 景色の確認用（テストではない。エリアを順に映す）
+	"--map-test": "res://tests/map_test.gd",  # 地図（C）
+	"--settings-test": "res://tests/settings_test.gd",  # 設定（O-01）  # 景色の確認用（テストではない。エリアを順に映す）
 }
 const TITLE_TEST_FLAG := "--title-test"  # テストのうち、これだけはタイトル画面を出す
 const WORLD_TEST_FLAGS := ["--world-test", "--world-views", "--items-test", "--side-enemies-test", "--vista-test", "--save-test", "--map-test"]  # これらは白砂市のエリアで動かす（ほかのテストは20m四方の部屋）
@@ -278,6 +279,7 @@ func _build_title_screen() -> void:
 	title_screen.name = "TitleScreen"
 	title_screen.start_requested.connect(_start_with_difficulty)
 	title_screen.continue_requested.connect(_continue_game)
+	title_screen.graphics_toggled.connect(toggle_graphics)
 	title_screen.quit_requested.connect(quit_game)
 	# タイトル画面の間は、調整用の文字やバーを隠し、景色用のカメラに切り替える
 	# （タイトル中はゲームが止まり _process が動かないので、表示が変わったときに切り替える）

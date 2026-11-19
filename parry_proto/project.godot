@@ -19,6 +19,7 @@ run/max_fps=240
 
 GameFeel="*res://scripts/combat/game_feel.gd"
 Discoveries="*res://scripts/game/discoveries.gd"
+GameSettings="*res://scripts/game/game_settings.gd"
 
 [physics]
 

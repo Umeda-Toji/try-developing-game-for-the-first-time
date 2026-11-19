@@ -40,6 +40,7 @@ func _ready() -> void:
 			continue  # ファイルが無ければ、この音は鳴らさない
 		var p := AudioStreamPlayer.new()
 		p.name = "Sfx_" + kind
+		p.bus = "SFX"  # 設定の「効果音」の音量（O-01）
 		if streams.size() == 1:
 			p.stream = streams[0]
 		else:

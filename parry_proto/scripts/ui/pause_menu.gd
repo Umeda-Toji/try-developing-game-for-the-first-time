@@ -37,6 +37,9 @@ var found_label: Label       # 見つけたもの（記録の断片 3 / 10 な�
 var map_button: Button
 var city_map := CityMap.new()  # 地図（C）。main.gd が world_root と player を入れる（_ready より前に入れられるよう、ここで作る）
 var map_open := false
+var settings_button: Button
+var settings_panel := SettingsPanel.new()  # 設定（O-01）
+var settings_open := false
 var save_available := true   # false のときはセーブのボタンを出さない（テスト用の部屋）
 const SAVE_LABEL := "セーブ"
 var credits_text: RichTextLabel  # クレジットの文章（テスト用。中身は CreditsPanel）
@@ -60,6 +63,10 @@ func _process(_delta: float) -> void:
 	if map_open:
 		if Input.is_action_just_pressed("pause") or Input.is_action_just_pressed("ui_cancel"):
 			close_map()
+		return
+	if settings_open:
+		if Input.is_action_just_pressed("pause") or Input.is_action_just_pressed("ui_cancel"):
+			close_settings()
 		return
 	if Input.is_action_just_pressed("pause"):
 		if is_open:
@@ -94,6 +101,19 @@ func close_credits() -> void:
 	credits_button.grab_focus()
 
 
+func open_settings() -> void:
+	settings_open = true
+	_menu_box.visible = false
+	settings_panel.open()
+
+
+func close_settings() -> void:
+	settings_open = false
+	settings_panel.close()
+	_menu_box.visible = true
+	settings_button.grab_focus()
+
+
 func open_map() -> void:
 	map_open = true
 	_menu_box.visible = false
@@ -108,6 +128,8 @@ func close_map() -> void:
 
 
 func close() -> void:
+	if settings_open:
+		close_settings()
 	if map_open:
 		close_map()
 	if credits_open:
@@ -152,14 +174,17 @@ func _build() -> void:
 	credits_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	credits_button.pressed.connect(open_credits)
 	quit_button = _make_button("終了", quit_requested)
-	# 画質（U-09）：押すたびに「高画質」⇔「軽い」。すぐ反映される
-	graphics_button = Button.new()
-	graphics_button.custom_minimum_size = BUTTON_SIZE
-	graphics_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	graphics_button.pressed.connect(func() -> void:
-		graphics_toggled.emit()
-		_update_graphics_label())
-	_update_graphics_label()
+	# 設定（O-01）：音量・感度・反転・狙いの補助・画質（U-09 の画質のボタンは、設定の画面に移した）
+	settings_button = Button.new()
+	settings_button.text = "設定"
+	settings_button.custom_minimum_size = BUTTON_SIZE
+	settings_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	settings_button.pressed.connect(open_settings)
+	settings_panel.name = "SettingsPanel"
+	settings_panel.back_pressed.connect(close_settings)
+	settings_panel.graphics_toggled.connect(func() -> void: graphics_toggled.emit())
+	add_child(settings_panel)
+	graphics_button = settings_panel.graphics_button
 	# 見つけたもの：ボタンの上に、小さめの文字で出す
 	found_label = Label.new()
 	found_label.name = "Found"
@@ -183,7 +208,7 @@ func _build() -> void:
 	buttons.add_theme_constant_override("separation", 12)
 	row.add_child(buttons)
 	row.add_child(found_label)
-	for b in [resume_button, retry_button, map_button, save_button, graphics_button, credits_button, quit_button]:
+	for b in [resume_button, retry_button, map_button, save_button, settings_button, credits_button, quit_button]:
 		buttons.add_child(b)
 	city_map.name = "CityMap"
 	city_map.back_pressed.connect(close_map)
@@ -194,11 +219,6 @@ func _build() -> void:
 # セーブした結果をボタンに出す（次に開くと「セーブ」に戻る）
 func show_saved(ok: bool) -> void:
 	save_button.text = "セーブしました" if ok else "セーブできませんでした"
-
-
-func _update_graphics_label() -> void:
-	GraphicsSettings.load_saved()
-	graphics_button.text = "画質：" + GraphicsSettings.label()
 
 
 # クレジットの画面（タイトル画面と同じもの。scripts/ui/credits_panel.gd）

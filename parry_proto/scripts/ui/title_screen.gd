@@ -15,6 +15,7 @@ extends CanvasLayer
 signal start_requested(difficulty: String)  # 選んだ難易度（Difficulty.EASY など）
 signal quit_requested
 signal continue_requested   # 「つづきから」（セーブ S-01）
+signal graphics_toggled     # 設定の画面の「画質」（U-09）
 
 # ---- 見た目の数値 ----
 const GAME_TITLE := "ParryProto"            # 仮の名前。決まったらここを変える
@@ -41,6 +42,9 @@ var confirm_yes: Button
 var confirm_no: Button
 var _confirm: Control
 var credits_button: Button
+var settings_button: Button
+var settings_panel := SettingsPanel.new()  # 設定（O-01）
+var settings_open := false
 var quit_button: Button
 var credits_panel: CreditsPanel
 
@@ -64,6 +68,8 @@ func _process(_delta: float) -> void:
 		close_confirm()
 	elif credits_open and back:
 		close_credits()
+	elif settings_open and back:
+		close_settings()
 	elif difficulty_open and back:
 		close_difficulty()
 
@@ -81,6 +87,8 @@ func open() -> void:
 
 
 func close() -> void:
+	if settings_open:
+		close_settings()
 	if confirm_open:
 		close_confirm()
 	if credits_open:
@@ -144,6 +152,19 @@ func choose_difficulty(id: String) -> void:
 	start_requested.emit(id)
 
 
+func open_settings() -> void:
+	settings_open = true
+	_menu.visible = false
+	settings_panel.open()
+
+
+func close_settings() -> void:
+	settings_open = false
+	settings_panel.close()
+	_menu.visible = true
+	settings_button.grab_focus()
+
+
 func open_credits() -> void:
 	credits_open = true
 	_menu.visible = false
@@ -198,10 +219,15 @@ func _build() -> void:
 	continue_button = _make_button("つづきから", func() -> void: continue_requested.emit())
 	box.add_child(continue_button)
 	start_button = _make_button("はじめる", _on_start_pressed)
+	settings_button = _make_button("設定", open_settings)
 	credits_button = _make_button("クレジット", open_credits)
 	quit_button = _make_button("終了", func() -> void: quit_requested.emit())
-	for b in [start_button, credits_button, quit_button]:
+	for b in [start_button, settings_button, credits_button, quit_button]:
 		box.add_child(b)
+	settings_panel.name = "SettingsPanel"
+	settings_panel.back_pressed.connect(close_settings)
+	settings_panel.graphics_toggled.connect(func() -> void: graphics_toggled.emit())
+	add_child(settings_panel)
 
 	var gap2 := Control.new()
 	gap2.custom_minimum_size = Vector2(0, 20)

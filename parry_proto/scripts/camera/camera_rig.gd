@@ -32,11 +32,17 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var mm := event as InputEventMouseMotion
-		yaw -= mm.relative.x * mouse_sensitivity
-		pitch = clampf(pitch - mm.relative.y * mouse_sensitivity, -1.2, 0.4)
+		apply_look(mm.relative * mouse_sensitivity, true)
 	# Esc でマウスを解放する処理は、ポーズメニュー（U-04）に移した（Esc でポーズ＝マウスが出る）
 	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+# カメラを回す。amount は（横, 縦）の回す量。設定（O-01）の感度と反転を掛ける
+func apply_look(amount: Vector2, is_mouse: bool, aiming: bool = false) -> void:
+	var s := GameSettings.look_scale(is_mouse, aiming)
+	yaw -= amount.x * s.x
+	pitch = clampf(pitch - amount.y * s.y, -1.2, 0.4)
 
 
 func _physics_process(delta: float) -> void:
@@ -54,8 +60,7 @@ func _physics_process(delta: float) -> void:
 		pitch = lerpf(pitch, -0.3, 0.1)
 	else:
 		var look := Input.get_vector("cam_left", "cam_right", "cam_up", "cam_down")
-		yaw -= look.x * stick_speed * delta
-		pitch = clampf(pitch - look.y * stick_speed * delta, -1.2, 0.4)
+		apply_look(look * stick_speed * delta, false)
 
 	rotation = Vector3(pitch, yaw, 0.0)
 

@@ -37,6 +37,7 @@ func _ready() -> void:
 			continue
 		var p := AudioStreamPlayer.new()
 		p.name = "Bgm_" + name
+		p.bus = "BGM"  # 設定の「BGM」の音量（O-01）
 		p.stream = load(path)
 		p.volume_db = SILENT_DB
 		add_child(p)
